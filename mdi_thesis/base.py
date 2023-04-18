@@ -106,7 +106,7 @@ class Results(Request):
 
     def __init__(self) -> None:
         super().__init__()
-
+        self.data_dict = {}
         # self.name = self.response_dict["name"]
         # self.owner = self.response_dict["owner"]["login"]
         # self.stars = self.response_dict["stargazers_count"]
@@ -114,6 +114,32 @@ class Results(Request):
         # self.created = self.response_dict["created_at"]
         # self.updated = self.response_dict["updated_at"]
         # self.desc = self.response_dict["description"]
+
+    def get_repository_data(self):
+        """
+        Query data from repositories
+        """
+        # self.created = self.response_dict["created_at"]
+        self.data_dict = {}
+        for repo_id in self.dictionary_of_list:
+            url_repositories = f"https://api.github.com/repositories/{repo_id}"
+            response = requests.get(url_repositories, headers=self.headers, timeout=100)
+            results_dict = response.json()
+            # created_at = results_dict.get("created_at")
+            # updated_at = results_dict.get("updated_at")
+            # pushed_at = results_dict.get("pushed_at")
+            # size = results_dict.get("size")
+            # stargazers_count = results_dict.get("stargazers_count")
+            # watchers_count = results_dict.get("watchers_count")
+            # language = results_dict.get("language")
+            # has_issues = results_dict.get("has_issues")
+            # forks_count = results_dict.get("forks_count")
+            # license = results_dict.get("license")
+            # open_issues = results_dict.get("open_issues")
+            # subscribers_count = results_dict.get("subscribers_count")
+
+            self.data_dict[repo_id] = results_dict
+        return self.data_dict
 
 
 def main():
@@ -152,13 +178,13 @@ def main():
         31912224,
     ]
     selected_repos = Results()
+    # Statement for selecting top 25 repositories
     # selected_repos.select_repos(repo_nr=25)
-    # test = selected_repos.select_repos(repo_list=repo_ids)
-    # print(test[0])
+
+    # Statement for selecting repositories according to list (for developing)
     selected_repos.select_repos(repo_list=repo_ids)
     # selected_repos.select_repos()
-    print(selected_repos.dictionary_of_list.keys())
-    # print(selected_repos.dictionary_of_list.get(31912224))
+    print(selected_repos.get_repository_data().get(31912224))
 
 
 if __name__ == "__main__":
