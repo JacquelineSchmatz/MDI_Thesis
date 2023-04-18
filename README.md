@@ -1,4 +1,7 @@
+Currently a GitHub token is required, to achieve this create a GitHub token and copy it into the constants_template.py file.
+Then rename the file to constants.py.
 
+IN PROGRESS:
 ---
 # mdi_thesis
 
@@ -15,10 +18,7 @@ pip install mdi_thesis
 
 ## Usage
 
-Currently a GitHub token is required, to achieve this create a GitHub token and copy it into the constants_template.py file.
-Then rename the file to constants.py.
 
-IN PROGRESS:
 ```py
 from mdi_thesis import BaseClass
 from mdi_thesis import base_function
