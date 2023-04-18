@@ -3,7 +3,9 @@
 Currently a GitHub token is required, to achieve this create a GitHub token and copy it into the constants_template.py file.
 Then rename the file to constants.py.
 Currently the new code is written in the base.py file and will be restructured later on.
-IN PROGRESS:
+
+
+# IN PROGRESS:
 
 ---
 # mdi_thesis
