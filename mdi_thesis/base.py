@@ -107,38 +107,206 @@ class Results(Request):
     def __init__(self) -> None:
         super().__init__()
         self.data_dict = {}
-        # self.name = self.response_dict["name"]
-        # self.owner = self.response_dict["owner"]["login"]
-        # self.stars = self.response_dict["stargazers_count"]
-        # self.repository = self.response_dict["html_url"]
-        # self.created = self.response_dict["created_at"]
-        # self.updated = self.response_dict["updated_at"]
-        # self.desc = self.response_dict["description"]
 
-    def get_repository_data(self):
+    def get_repo_request(
+        self,
+        repository=False,
+        issue=False,
+        release=False,
+        license=False,
+        forks=False,
+        pull_requests=False,
+        contributors=False,
+        commits=False,
+        issue_comment=False,
+        community_health=False,
+    ):
+        """ "
+        Calls functions which perform actual query.
+        :param repository: If repository data is required 1, else 0
+        :param issue: If issue data is required 1, else 0
+        """
+        if repository:
+            request_url_1 = "https://api.github.com/repositories/"
+            feature_list = [
+                "name",
+                "owner",
+                "created_at",
+                "updated_at",
+                "pushed_at",
+                "size",
+                "stargazers_count",
+                "watchers_count",
+                "language",
+                "has_issues",
+                "forks_count",
+                "license",
+                "open_issues",
+                "subscribers_count",
+            ]
+
+        if issue:
+            # TODO: Check if pull requests are included in issues
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/issues?state=all"
+            feature_list = [
+                "id",
+                "number",
+                "state",
+                "title",
+                "created_at",
+                "updated_at",
+                "closed_at",
+            ]
+
+        if issue_comment:
+            # TODO: Check if pull requests are included in issues
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/issues/comments"
+            feature_list = [
+                "id",
+                "created_at",
+                "updated_at",
+            ]
+
+        if release:
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/releases"
+            feature_list = ["id", "tag_name", "prerelease", "published_at"]
+
+        if license:
+            # Most projects only have one license, henve the metric should be redefined eventually
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/license"
+            feature_list = ["license"]
+
+        if forks:
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/forks"
+            feature_list = [
+                "id",
+                "name",
+                "owner",
+                "fork",
+                "is_template",
+                "pushed_at",
+                "created_at",
+            ]
+
+        if pull_requests:
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/pulls"
+            feature_list = [
+                "id",
+                "number",
+                "state",
+                "created_at",
+                "updated_at",
+                "closed_at",
+                "pushed_at",
+                "merged_at",
+                "head",  # head required to see if merged branch is a fork ("fork"=true/false)
+            ]
+
+        if contributors:
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/contributors"
+            feature_list = [
+                "id",
+                "login",
+                "contributions",
+            ]
+        if commits:
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/commits"
+            feature_list = [
+                "commit",
+                "committer",
+            ]
+        if community_health:
+            request_url_1 = "https://api.github.com/repositories/"
+            request_url_2 = "/community/profile"
+            feature_list = [
+                "health_percentage",
+                "updated_at",
+                "description",
+                "documentation",
+                "files",
+            ]
+        #    feature_list = []
+        #    request_url = " "
+        # else:
+        #   feature_list = []
+        #    request_url = " "
+        data_dict = self.get_repository_data(
+            feature_list=feature_list,
+            request_url_1=request_url_1,
+            request_url_2=request_url_2,
+        )
+
+        return data_dict
+
+    def get_users(self, user_list):
+        """
+        Placeholder for getting users to check if they belong to a company.
+        :param user_list: list with user ids
+        :return:
+
+        """
+        feature_list = ["login", "id", "name", "company"]
+        for user in user_list:
+            request_url = "https://api.github.com/users/" + str(user)
+
+        pass
+
+    def get_dependency_diff(self, commits):
+        """
+        Note from the documentation conc. BASEHEAD:
+        "The base and head Git revisions to compare.
+        ...
+        This parameter expects the format {base}...{head}."
+
+        :param commits: refers to the head parameter.
+        :return:
+        """
+        request_url_1 = "https://api.github.com/repositories/"
+        request_url_2 = "/dependency-graph/compare/BASEHEAD"
+        feature_list = [
+            "change_type",
+            "ecosystem",
+            "name",
+            "license",
+            "vulnerabilities",
+        ]
+
+    def get_repository_data(self, feature_list, request_url_1, request_url_2):
         """
         Query data from repositories
         """
-        # self.created = self.response_dict["created_at"]
         self.data_dict = {}
         for repo_id in self.dictionary_of_list:
-            url_repositories = f"https://api.github.com/repositories/{repo_id}"
-            response = requests.get(url_repositories, headers=self.headers, timeout=100)
-            results_dict = response.json()
-            # created_at = results_dict.get("created_at")
-            # updated_at = results_dict.get("updated_at")
-            # pushed_at = results_dict.get("pushed_at")
-            # size = results_dict.get("size")
-            # stargazers_count = results_dict.get("stargazers_count")
-            # watchers_count = results_dict.get("watchers_count")
-            # language = results_dict.get("language")
-            # has_issues = results_dict.get("has_issues")
-            # forks_count = results_dict.get("forks_count")
-            # license = results_dict.get("license")
-            # open_issues = results_dict.get("open_issues")
-            # subscribers_count = results_dict.get("subscribers_count")
+            # url_repositories = f"https://api.github.com/repositories/{repo_id}"
+            if request_url_2:
+                url_repo = str(request_url_1 + str(repo_id) + request_url_2)
+            else:
+                url_repo = str(request_url_1 + str(repo_id))
+            response = requests.get(url_repo, headers=self.headers, timeout=100)
+            results = response.json()
+            if isinstance(results, list):
+                # print(results[0])
+                return_data = []
+                for element in results:
+                    element_dict = {}
+                    for feature in feature_list:
+                        element_dict[feature] = element.get(feature)
+                    return_data.append(element_dict)
 
-            self.data_dict[repo_id] = results_dict
+            elif isinstance(results, dict):
+                return_data = {}
+                for feature in feature_list:
+                    return_data[feature] = results.get(feature)
+            # print(return_dict)
+            self.data_dict[repo_id] = return_data
         return self.data_dict
 
 
@@ -184,7 +352,8 @@ def main():
     # Statement for selecting repositories according to list (for developing)
     selected_repos.select_repos(repo_list=repo_ids)
     # selected_repos.select_repos()
-    print(selected_repos.get_repository_data().get(31912224))
+    # print(selected_repos.get_repository_data().get(31912224))
+    print(selected_repos.get_repo_request(community_health=True).get(617798408))  #
 
 
 if __name__ == "__main__":
