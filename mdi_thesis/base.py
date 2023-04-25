@@ -80,7 +80,9 @@ class Request:
         return self.selected_repos_list
 
     def clean_results(
-        self, results, key_list=["id", "node_id", "name", "owner", "html_url"]
+        self,
+        results: dict,
+        key_list: list = ["id", "node_id", "name", "owner", "html_url"],
     ) -> dict:
         """
         :param results: Results to be clean in dictionary form
@@ -121,7 +123,8 @@ class Results(Request):
         issue_comment=False,
         community_health=False,
     ):
-        """ "
+        """
+        TODO: Replace function with lookup json file (query_features.json)
         Calls functions which perform actual query.
         :param repository: If repository data is required 1, else 0
         :param issue: If issue data is required 1, else 0
@@ -146,7 +149,7 @@ class Results(Request):
             ]
 
         if issue:
-            # TODO: Check if pull requests are included in issues
+            # Pull requests are included in issues and are identified by the pull_request key
             request_url_1 = "https://api.github.com/repositories/"
             request_url_2 = "/issues?state=all"
             feature_list = [
@@ -157,6 +160,7 @@ class Results(Request):
                 "created_at",
                 "updated_at",
                 "closed_at",
+                "pull_request",
             ]
 
         if issue_comment:
@@ -246,9 +250,9 @@ class Results(Request):
 
         return data_dict
 
-    def get_users(self, user_list):
+    def get_users(self, user_list: list):
         """
-        Placeholder for getting users to check if they belong to a company.
+        TODO: Placeholder for getting users to check if they belong to a company.
         :param user_list: list with user ids
         :return:
 
@@ -261,7 +265,7 @@ class Results(Request):
 
     def get_dependency_diff(self, commits):
         """
-        Note from the documentation conc. BASEHEAD:
+        TODO: Note from the documentation conc. BASEHEAD:
         "The base and head Git revisions to compare.
         ...
         This parameter expects the format {base}...{head}."
@@ -279,9 +283,66 @@ class Results(Request):
             "vulnerabilities",
         ]
 
-    def get_repository_data(self, feature_list, request_url_1, request_url_2):
+    def __get_comments(self, comment_object: int, object_url: str) -> dict:
+        """
+        TODO: Add "since" parameter, bc. otherwise only data from 1. page are queried
+        :param object: Object from which the concerning comments are queryied (e.g. pull, issue)
+        :param object_url: Base url to which the object id is added to query the information.
+        :return: Dictionary with the object id and the concerning comments
+        """
+        feature_list = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
+        comment_dict = {}
+        url = object_url + str(comment_object) + "/comments"
+        response = requests.get(url, headers=self.headers, timeout=100)
+        results = response.json()
+        if results:
+            for element in results:
+                element_dict = {}
+                for feature in feature_list:
+                    element_dict[feature] = element.get(feature)
+            comment_dict[comment_object] = element_dict
+        else:
+            comment_dict[comment_object] = {}
+        return comment_dict
+
+    def get_issue_comment_per_issue(self):
+        """
+        Function to retrieve issues andd the comments for each.
+        Note: Issues also contain pull requests.
+        TODO: Add "since" parameter, bc. otherwise only data from 1. page are queried
+        :return: A dictionary with the repository id, its issue ids and the comments per issue.
+        """
+        request_url_1 = "https://api.github.com/repositories/"
+        request_url_2 = "/issues/"
+        issues_per_repo = self.get_repo_request(issue=True)
+        issue_comment_dict = {}
+        for repository in issues_per_repo:
+            issues_list = []
+            url = request_url_1 + str(repository) + request_url_2
+            issues = issues_per_repo.get(repository)
+            # print(repository)
+            # print(issues)
+            for issue in issues:
+                issue_id = issue.get("number")
+                comment_dict = self.__get_comments(object=issue_id, object_url=url)
+                issues_list.append(comment_dict)
+            issue_comment_dict[repository] = issues_list
+        return issue_comment_dict
+
+    def get_repository_data(
+        self, feature_list: list, request_url_1: str, request_url_2: str
+    ):
         """
         Query data from repositories
+        :param feature_list: Features are the information which should be stored after querying to avoid gathering unwanted data.
+        :param request_url_1: First part of the url, split bc. in some cases information such as the repository id must be in the middle of the url.
+        :param request_url_2: Second part of the url, pointing to the GitHub API subcategory.
+
+        :return:
         """
         self.data_dict = {}
         for repo_id in self.dictionary_of_list:
@@ -353,7 +414,8 @@ def main():
     selected_repos.select_repos(repo_list=repo_ids)
     # selected_repos.select_repos()
     # print(selected_repos.get_repository_data().get(31912224))
-    print(selected_repos.get_repo_request(community_health=True).get(617798408))  #
+    print(selected_repos.get_repo_request(issue=True).get(617798408))  #
+    # print(selected_repos.get_issue_comment_per_issue().get(617798408))
 
 
 if __name__ == "__main__":
