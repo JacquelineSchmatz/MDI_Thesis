@@ -13,8 +13,10 @@ If you want to replace this with a Flask application run:
 and then choose `flask` as template.
 """
 from datetime import date
+import json
 import requests
 import constants
+import utils
 
 # import numpy as np
 
@@ -29,8 +31,6 @@ class Request:
         self.headers = {"Authorization": "token " + self.token}
         self.url = ""
         self.response = requests.Response()
-        self.response_dict = {}
-        self.results_dict = {}
         self.selected_repos_dict = self.select_repos()
 
     def select_repos(
@@ -48,13 +48,14 @@ class Request:
         :param repo_list:
         :returns: List with dictionaries of selected repositories
         """
+        selected_repos_list = []
         if repo_list:
             self.selected_repos_list = []
             for item in repo_list:
                 url = f"https://api.github.com/repositories/{item}"
                 response = requests.get(url, headers=self.headers, timeout=100)
                 results_dict = response.json()
-                self.selected_repos_list.append(results_dict)
+                selected_repos_list.append(results_dict)
 
         else:
             self.url = (
@@ -65,40 +66,19 @@ class Request:
                 + "&access_token="
                 + self.token
             )
-            self.response = requests.get(self.url, headers=self.headers, timeout=100)
-            self.response_dict = self.response.json()
-            self.results_dict = self.response_dict["items"]
-            self.selected_repos_list = self.results_dict[:repo_nr]
+            response = requests.get(self.url, headers=self.headers, timeout=100)
+            response_dict = response.json()
+            results_dict = response_dict["items"]
+            selected_repos_list = results_dict[:repo_nr]
 
-        self.dictionary_of_list = self.clean_results(self.selected_repos_list)
+        self.dictionary_of_list = utils.clean_results(selected_repos_list)
         # Switching from list with dictionaries to dictionary with lists
 
         # self.switched_repo_dict = {
         #     key: [i[key] for i in self.repo_dict] for key in self.repo_dict[0]
         # }
         # self.selected_repos_urls = self.switched_repo_dict["html_url"]
-        return self.selected_repos_list
-
-    def clean_results(
-        self,
-        results: dict,
-        key_list: list = ["id", "node_id", "name", "owner", "html_url"],
-    ) -> dict:
-        """
-        :param results: Results to be clean in dictionary form
-        :param key_list: List of keys to be taken
-        :returns: dictionary with clean lists
-        """
-        dictionary_of_list = {}
-
-        for item in results:
-            if "id" in item:
-                repo_id = item["id"]
-                selected_items = {k: v for k, v in item.items() if k in key_list}
-                dictionary_of_list[repo_id] = selected_items
-            else:
-                pass
-        return dictionary_of_list
+        return selected_repos_list
 
 
 class Results(Request):
@@ -122,6 +102,7 @@ class Results(Request):
         commits=False,
         issue_comment=False,
         community_health=False,
+        branches=False,
     ):
         """
         TODO: Replace function with lookup json file (query_features.json)
@@ -129,39 +110,21 @@ class Results(Request):
         :param repository: If repository data is required 1, else 0
         :param issue: If issue data is required 1, else 0
         """
-        if repository:
-            request_url_1 = "https://api.github.com/repositories/"
-            feature_list = [
-                "name",
-                "owner",
-                "created_at",
-                "updated_at",
-                "pushed_at",
-                "size",
-                "stargazers_count",
-                "watchers_count",
-                "language",
-                "has_issues",
-                "forks_count",
-                "license",
-                "open_issues",
-                "subscribers_count",
-            ]
-
-        if issue:
-            # Pull requests are included in issues and are identified by the pull_request key
-            request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/issues?state=all"
-            feature_list = [
-                "id",
-                "number",
-                "state",
-                "title",
-                "created_at",
-                "updated_at",
-                "closed_at",
-                "pull_request",
-            ]
+        parameters = locals()
+        request_url_1 = ""
+        request_url_2 = ""
+        feature_list = []
+        # feature_list_2 = []
+        query_features_file = open("mdi_thesis/query_features.json")
+        query_features = json.load(query_features_file)
+        query_dict = {}
+        for parameter, value in parameters.items():
+            if value and parameter != "self":
+                # print(query_features)
+                feature_list = query_features[0].get(parameter)[0].get("feature_list")
+                request_url_1 = query_features[0].get(parameter)[0].get("request_url_1")
+                request_url_2 = query_features[0].get(parameter)[0].get("request_url_2")
+                query_dict[parameter] = [feature_list, request_url_1, request_url_2]
 
         if issue_comment:
             # TODO: Check if pull requests are included in issues
@@ -173,141 +136,32 @@ class Results(Request):
                 "updated_at",
             ]
 
-        if release:
-            request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/releases"
-            feature_list = ["id", "tag_name", "prerelease", "published_at"]
-
-        if license:
-            # Most projects only have one license, henve the metric should be redefined eventually
-            request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/license"
-            feature_list = ["license"]
-
-        if forks:
-            request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/forks"
-            feature_list = [
-                "id",
-                "name",
-                "owner",
-                "fork",
-                "is_template",
-                "pushed_at",
-                "created_at",
-            ]
-
-        if pull_requests:
-            request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/pulls"
-            feature_list = [
-                "id",
-                "number",
-                "state",
-                "created_at",
-                "updated_at",
-                "closed_at",
-                "pushed_at",
-                "merged_at",
-                "head",  # head required to see if merged branch is a fork ("fork"=true/false)
-            ]
-
-        if contributors:
-            request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/contributors"
-            feature_list = [
-                "id",
-                "login",
-                "contributions",
-            ]
         if commits:
             request_url_1 = "https://api.github.com/repositories/"
             request_url_2 = "/commits"
-            feature_list = [
-                "commit",
-                "committer",
-            ]
-        if community_health:
+            feature_list = ["commit", "committer"]
+            # Hash necessary for single commits
+
+        if branches:
             request_url_1 = "https://api.github.com/repositories/"
-            request_url_2 = "/community/profile"
+            request_url_2 = "/branches"
             feature_list = [
-                "health_percentage",
-                "updated_at",
-                "description",
-                "documentation",
-                "files",
+                "name",
+                "commit",
             ]
-        #    feature_list = []
-        #    request_url = " "
-        # else:
-        #   feature_list = []
-        #    request_url = " "
-        data_dict = self.get_repository_data(
-            feature_list=feature_list,
-            request_url_1=request_url_1,
-            request_url_2=request_url_2,
-        )
+            feature_list_2 = [""]
+            # https://api.github.com/repos/OWNER/REPO/branches/BRANCH
+
+        data_dict = {}
+        for param, query in query_dict.items():
+            param_dict = self.get_repository_data(
+                feature_list=query[0],
+                request_url_1=query[1],
+                request_url_2=query[2],
+            )
+            data_dict[param] = param_dict
 
         return data_dict
-
-    def get_users(self, user_list: list):
-        """
-        TODO: Placeholder for getting users to check if they belong to a company.
-        :param user_list: list with user ids
-        :return:
-
-        """
-        feature_list = ["login", "id", "name", "company"]
-        for user in user_list:
-            request_url = "https://api.github.com/users/" + str(user)
-
-        pass
-
-    def get_dependency_diff(self, commits):
-        """
-        TODO: Note from the documentation conc. BASEHEAD:
-        "The base and head Git revisions to compare.
-        ...
-        This parameter expects the format {base}...{head}."
-
-        :param commits: refers to the head parameter.
-        :return:
-        """
-        request_url_1 = "https://api.github.com/repositories/"
-        request_url_2 = "/dependency-graph/compare/BASEHEAD"
-        feature_list = [
-            "change_type",
-            "ecosystem",
-            "name",
-            "license",
-            "vulnerabilities",
-        ]
-
-    def __get_comments(self, comment_object: int, object_url: str) -> dict:
-        """
-        TODO: Add "since" parameter, bc. otherwise only data from 1. page are queried
-        :param object: Object from which the concerning comments are queryied (e.g. pull, issue)
-        :param object_url: Base url to which the object id is added to query the information.
-        :return: Dictionary with the object id and the concerning comments
-        """
-        feature_list = [
-            "id",
-            "created_at",
-            "updated_at",
-        ]
-        comment_dict = {}
-        url = object_url + str(comment_object) + "/comments"
-        response = requests.get(url, headers=self.headers, timeout=100)
-        results = response.json()
-        if results:
-            for element in results:
-                element_dict = {}
-                for feature in feature_list:
-                    element_dict[feature] = element.get(feature)
-            comment_dict[comment_object] = element_dict
-        else:
-            comment_dict[comment_object] = {}
-        return comment_dict
 
     def get_issue_comment_per_issue(self):
         """
@@ -318,7 +172,7 @@ class Results(Request):
         """
         request_url_1 = "https://api.github.com/repositories/"
         request_url_2 = "/issues/"
-        issues_per_repo = self.get_repo_request(issue=True)
+        issues_per_repo = self.get_repo_request(issue=True).get("issue")
         issue_comment_dict = {}
         for repository in issues_per_repo:
             issues_list = []
@@ -328,7 +182,9 @@ class Results(Request):
             # print(issues)
             for issue in issues:
                 issue_id = issue.get("number")
-                comment_dict = self.__get_comments(object=issue_id, object_url=url)
+                comment_dict = utils.get_comments(
+                    comment_object=issue_id, object_url=url
+                )
                 issues_list.append(comment_dict)
             issue_comment_dict[repository] = issues_list
         return issue_comment_dict
@@ -338,8 +194,10 @@ class Results(Request):
     ):
         """
         Query data from repositories
-        :param feature_list: Features are the information which should be stored after querying to avoid gathering unwanted data.
-        :param request_url_1: First part of the url, split bc. in some cases information such as the repository id must be in the middle of the url.
+        :param feature_list: Features are the information which should be stored
+        after querying to avoid gathering unwanted data.
+        :param request_url_1: First part of the url, split bc. in some cases
+        information such as the repository id must be in the middle of the url.
         :param request_url_2: Second part of the url, pointing to the GitHub API subcategory.
 
         :return:
@@ -353,6 +211,7 @@ class Results(Request):
                 url_repo = str(request_url_1 + str(repo_id))
             response = requests.get(url_repo, headers=self.headers, timeout=100)
             results = response.json()
+            # print(results)
             if isinstance(results, list):
                 # print(results[0])
                 return_data = []
@@ -414,7 +273,13 @@ def main():
     selected_repos.select_repos(repo_list=repo_ids)
     # selected_repos.select_repos()
     # print(selected_repos.get_repository_data().get(31912224))
-    print(selected_repos.get_repo_request(issue=True).get(617798408))  #
+    # print(selected_repos.get_repository_data().get(617798408))
+    print(
+        selected_repos.get_repo_request(issue=True, license=True, issue_comment=True)
+        .get("issue")
+        .get(307260205)
+    )
+
     # print(selected_repos.get_issue_comment_per_issue().get(617798408))
 
 

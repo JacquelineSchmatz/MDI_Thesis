@@ -3,6 +3,7 @@
         "repository": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
+                "request_url_2": "",
                 "feature_list": [
                     "name",
                     "owner",
@@ -20,9 +21,7 @@
                     "subscribers_count"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "issue": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -38,9 +37,7 @@
                     "pull_request"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "issue_comment": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -51,9 +48,7 @@
                     "updated_at"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "release": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -65,9 +60,7 @@
                     "published_at"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "license": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -76,9 +69,7 @@
                     "license"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "forks": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -93,9 +84,7 @@
                     "created_at"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "pull_requests": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -112,9 +101,7 @@
                     "head"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "contributors": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -125,9 +112,7 @@
                     "contributions"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "commits": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
@@ -137,9 +122,7 @@
                     "committer"
                 ]
             }
-        ]
-    },
-    {
+        ],
         "community_health": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
