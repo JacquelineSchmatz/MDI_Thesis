@@ -1,3 +1,16 @@
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def __get_ids_from_txt__(path: str) -> list:
+    with open(path) as f:
+        lines = f.read().splitlines()
+        ids = [int(i) for i in lines]
+        return ids
+
+
 def clean_results(
     results: dict,
     key_list: list = ["id", "node_id", "name", "owner", "html_url"],
@@ -19,31 +32,88 @@ def clean_results(
     return dictionary_of_list
 
 
-def get_comments(comment_object: int, object_url: str) -> dict:
+def get_comments(
+    headers: dict, features: list, comment_object: int, object_url: str
+) -> dict:
     """
     TODO: Add "since" parameter, bc. otherwise only data from 1. page are queried
     :param object: Object from which the concerning comments are queryied (e.g. pull, issue)
     :param object_url: Base url to which the object id is added to query the information.
     :return: Dictionary with the object id and the concerning comments
     """
-    feature_list = [
-        "id",
-        "created_at",
-        "updated_at",
-    ]
+
     comment_dict = {}
     url = object_url + str(comment_object) + "/comments"
-    response = requests.get(url, headers=self.headers, timeout=100)
+    response = requests.get(url, headers=headers, timeout=100)
     results = response.json()
+    element_dict = {}
     if results:
         for element in results:
             element_dict = {}
-            for feature in feature_list:
+            for feature in features:
                 element_dict[feature] = element.get(feature)
         comment_dict[comment_object] = element_dict
     else:
         comment_dict[comment_object] = {}
     return comment_dict
+
+
+def get_subfeatures(
+    session: requests.Session,
+    headers: dict,
+    features: list,
+    object_id: int,
+    object_url: str,
+    sub_url: str,
+) -> dict:
+    """
+    :param object: Object from which the concerning comments are queryied (e.g. pull, issue)
+    :param object_url: Base url to which the object id is added to query the information.
+    :return: Dictionary with the object id and the concerning comments
+    """
+    logger.info("Starting querying subfeatures.")
+    subfeature_dict = {}
+    url = object_url + "/" + str(object_id) + sub_url
+    url_param = "?simple=yes&per_page=100&page=1"
+    logger.info("Getting page 1")
+    start_url = url + url_param
+    response = session.get(start_url, headers=headers, timeout=100)
+    results = response.json()
+    if "last" in response.links:
+        nr_of_pages = response.links.get("last").get("url").split("&page=", 1)[1]
+        print(nr_of_pages)
+        print(response.links.get("last"))
+        if results:
+            if int(nr_of_pages) > 1:
+                for page in range(2, int(nr_of_pages) + 1):
+                    url_repo = f"{url}?simple=yes&per_page=100&page={page}"
+                    res = session.get(url_repo, headers=headers, timeout=100)
+                    logger.info("Query page %s of %s", page, nr_of_pages)
+                    logging.info("Extending results...")
+                    try:
+                        results.extend(res.json())
+                    except Exception as error:
+                        print(f"Error: {error}")
+                        print(f"Could not extend: {res.json()}")
+        else:
+            results = {}
+        # while "next" in response.links.keys():
+        #    res = requests.get(response.links["next"]["url"], headers=headers)
+        #   results.extend(res.json())
+    element_dict = {}
+    if isinstance(results, list):
+        for element in results:
+            element_dict = {}
+            for feature in features:
+                element_dict[feature] = element.get(feature)
+        subfeature_dict[object_id] = element_dict
+    elif isinstance(results, dict):
+        for feature in features:
+            element_dict[feature] = results.get(feature)
+        subfeature_dict[object_id] = element_dict
+    else:
+        subfeature_dict[object_id] = {}
+    return subfeature_dict
 
 
 def get_users(user_list: list):

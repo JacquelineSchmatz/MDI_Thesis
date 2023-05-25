@@ -4,6 +4,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "",
+                "request_url_3": "",
                 "feature_list": [
                     "name",
                     "owner",
@@ -26,6 +27,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/issues?state:all",
+                "request_url_3": "",
                 "feature_list": [
                     "id",
                     "number",
@@ -35,17 +37,30 @@
                     "updated_at",
                     "closed_at",
                     "pull_request"
-                ]
-            }
-        ],
-        "issue_comment": [
-            {
-                "request_url_1": "https://api.github.com/repositories/",
-                "request_url_2": "/issues/comments",
-                "feature_list": [
+                ],
+                "feature_key": "id",
+                "subfeature_list": [
                     "id",
                     "created_at",
                     "updated_at"
+                ]
+            }
+        ],
+        "issue_comments": [
+            {
+                "request_url_1": "https://api.github.com/repositories/",
+                "request_url_2": "/issues?state:all",
+                "request_url_3": "/comments",
+                "feature_list": [
+                    "number"
+                ],
+                "feature_key": "number",
+                "subfeature_list": [
+                    "id",
+                    "user",
+                    "created_at",
+                    "updated_at",
+                    "author_association"
                 ]
             }
         ],
@@ -53,6 +68,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/releases",
+                "request_url_3": "",
                 "feature_list": [
                     "id",
                     "tag_name",
@@ -65,6 +81,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/license",
+                "request_url_3": "",
                 "feature_list": [
                     "license"
                 ]
@@ -74,6 +91,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/forks",
+                "request_url_3": "",
                 "feature_list": [
                     "id",
                     "name",
@@ -89,6 +107,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/pulls",
+                "request_url_3": "",
                 "feature_list": [
                     "id",
                     "number",
@@ -106,6 +125,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/contributors",
+                "request_url_3": "",
                 "feature_list": [
                     "id",
                     "login",
@@ -117,9 +137,17 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/commits",
+                "request_url_3": "",
                 "feature_list": [
+                    "sha",
                     "commit",
                     "committer"
+                ],
+                "feature_key": "sha",
+                "subfeature_list": [
+                    "comment_count",
+                    "status",
+                    "stats"
                 ]
             }
         ],
@@ -127,6 +155,7 @@
             {
                 "request_url_1": "https://api.github.com/repositories/",
                 "request_url_2": "/community/profile",
+                "request_url_3": "",
                 "feature_list": [
                     "health_percentage",
                     "updated_at",
