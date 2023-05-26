@@ -82,7 +82,7 @@ class Request:
                 + help_wanted_issues
                 + "&access_token="
                 + self.token
-                + "?simple=yes&per_page="
+                + "?per_page="  # "?simple=yes&per_page="
                 + str(self.results_per_page)
                 + "&page=1"
             )
@@ -306,9 +306,9 @@ def main():
     repo_ids = utils.__get_ids_from_txt__(path=repo_ids_path)
     selected_repos = Request()
     # Statement for selecting number of queried repositories
-    selected_repos.select_repos(repo_nr=1, order="desc")
+    # selected_repos.select_repos(repo_nr=1, order="desc")
     # Statement for selecting repositories according to list (for developing)
-    # selected_repos.select_repos(repo_list=repo_ids)
+    selected_repos.select_repos(repo_list=repo_ids)
     test = (
         selected_repos.get_repo_request(queried_features=["repository"]).get(
             "repository"
@@ -325,7 +325,6 @@ def main():
 
     # test2 = selected_repos.get_single_object(feature="commits")  # .get(617798408))
     # print(test2)
-    # TODO: Replace while next with other loop, Check why session link is getting longer in loggings
 
 
 if __name__ == "__main__":

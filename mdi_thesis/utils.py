@@ -74,14 +74,18 @@ def get_subfeatures(
     logger.info("Starting querying subfeatures.")
     subfeature_dict = {}
     url = object_url + "/" + str(object_id) + sub_url
-    url_param = "?simple=yes&per_page=100&page=1"
+    url_param = "?per_page=100&page=1"  # "?simple=yes&per_page=100&page=1"
     logger.info("Getting page 1")
     start_url = url + url_param
     response = session.get(start_url, headers=headers, timeout=100)
     results = response.json()
+    # print(results)
+    # TODO: CHECK WHY DIFFERENT OUTPUT THEN DOCUMENTATION!
+    # IF NECESSARY SKIP INFORMATION ABOUT COMMENTS PER USER AND ONLY USE NUMBER OF COMMENTS
+    # quit()
+    print(len(results))
     if "last" in response.links:
         nr_of_pages = response.links.get("last").get("url").split("&page=", 1)[1]
-        print(nr_of_pages)
         print(response.links.get("last"))
         if results:
             if int(nr_of_pages) > 1:
@@ -90,6 +94,7 @@ def get_subfeatures(
                     res = session.get(url_repo, headers=headers, timeout=100)
                     logger.info("Query page %s of %s", page, nr_of_pages)
                     logging.info("Extending results...")
+                    # print(res.json())
                     try:
                         results.extend(res.json())
                     except Exception as error:
@@ -100,19 +105,27 @@ def get_subfeatures(
         # while "next" in response.links.keys():
         #    res = requests.get(response.links["next"]["url"], headers=headers)
         #   results.extend(res.json())
+    print(results)
+    quit()
     element_dict = {}
+    subfeature_list = []
     if isinstance(results, list):
         for element in results:
             element_dict = {}
             for feature in features:
                 element_dict[feature] = element.get(feature)
-        subfeature_dict[object_id] = element_dict
+                print(object_id)
+                print(element_dict)
+        subfeature_list.append(element_dict)
+        subfeature_dict[object_id] = subfeature_list
     elif isinstance(results, dict):
         for feature in features:
             element_dict[feature] = results.get(feature)
-        subfeature_dict[object_id] = element_dict
+        subfeature_list.append(element_dict)
+        subfeature_dict[object_id] = subfeature_list
     else:
         subfeature_dict[object_id] = {}
+
     return subfeature_dict
 
 
