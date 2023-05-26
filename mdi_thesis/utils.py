@@ -36,9 +36,10 @@ def get_comments(
     headers: dict, features: list, comment_object: int, object_url: str
 ) -> dict:
     """
-    TODO: Add "since" parameter, bc. otherwise only data from 1. page are queried
-    :param object: Object from which the concerning comments are queryied (e.g. pull, issue)
-    :param object_url: Base url to which the object id is added to query the information.
+    :param object: Object from which the concerning comments are queryied
+    (e.g. pull, issue)
+    :param object_url:
+    Base url to which the object id is added to query the information.
     :return: Dictionary with the object id and the concerning comments
     """
 
@@ -67,8 +68,10 @@ def get_subfeatures(
     sub_url: str,
 ) -> dict:
     """
-    :param object: Object from which the concerning comments are queryied (e.g. pull, issue)
-    :param object_url: Base url to which the object id is added to query the information.
+    :param object: Object from which the concerning comments are queryied
+    (e.g. pull, issue)
+    :param object_url:
+    Base url to which the object id is added to query the information.
     :return: Dictionary with the object id and the concerning comments
     """
     logger.info("Starting querying subfeatures.")
@@ -79,14 +82,9 @@ def get_subfeatures(
     start_url = url + url_param
     response = session.get(start_url, headers=headers, timeout=100)
     results = response.json()
-    # print(results)
-    # TODO: CHECK WHY DIFFERENT OUTPUT THEN DOCUMENTATION!
-    # IF NECESSARY SKIP INFORMATION ABOUT COMMENTS PER USER AND ONLY USE NUMBER OF COMMENTS
-    # quit()
-    print(len(results))
     if "last" in response.links:
-        nr_of_pages = response.links.get("last").get("url").split("&page=", 1)[1]
-        print(response.links.get("last"))
+        nr_of_pages = response.links.get(
+            "last").get("url").split("&page=", 1)[1]
         if results:
             if int(nr_of_pages) > 1:
                 for page in range(2, int(nr_of_pages) + 1):
@@ -94,7 +92,6 @@ def get_subfeatures(
                     res = session.get(url_repo, headers=headers, timeout=100)
                     logger.info("Query page %s of %s", page, nr_of_pages)
                     logging.info("Extending results...")
-                    # print(res.json())
                     try:
                         results.extend(res.json())
                     except Exception as error:
@@ -102,21 +99,16 @@ def get_subfeatures(
                         print(f"Could not extend: {res.json()}")
         else:
             results = {}
-        # while "next" in response.links.keys():
-        #    res = requests.get(response.links["next"]["url"], headers=headers)
-        #   results.extend(res.json())
-    print(results)
-    quit()
+    print(object_id)
     element_dict = {}
     subfeature_list = []
     if isinstance(results, list):
+        print(results)
         for element in results:
             element_dict = {}
             for feature in features:
                 element_dict[feature] = element.get(feature)
-                print(object_id)
-                print(element_dict)
-        subfeature_list.append(element_dict)
+            subfeature_list.append(element_dict)
         subfeature_dict[object_id] = subfeature_list
     elif isinstance(results, dict):
         for feature in features:
@@ -125,7 +117,6 @@ def get_subfeatures(
         subfeature_dict[object_id] = subfeature_list
     else:
         subfeature_dict[object_id] = {}
-
     return subfeature_dict
 
 
@@ -137,15 +128,17 @@ def get_users(user_list: list):
 
     """
     feature_list = ["login", "id", "name", "company"]
+    request_url = ""
     for user in user_list:
         request_url = "https://api.github.com/users/" + str(user)
 
-    pass
+    return feature_list, request_url
 
 
 def get_commits():
     feature_list = ["comment_count", "stats", "files"]
     # https://api.github.com/repos/OWNER/REPO/commits/REF
+    return feature_list
 
 
 def get_dependency_diff(commits):
@@ -167,3 +160,4 @@ def get_dependency_diff(commits):
         "license",
         "vulnerabilities",
     ]
+    return request_url_1, request_url_2, feature_list

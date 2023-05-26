@@ -49,7 +49,7 @@
         "issue_comments": [
             {
                 "request_url_1": "https://api.github.com/repositories/",
-                "request_url_2": "/issues?state:all",
+                "request_url_2": "/issues",
                 "request_url_3": "/comments",
                 "feature_list": [
                     "number"
