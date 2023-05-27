@@ -1,10 +1,15 @@
-import requests
+"""
+Module for functions required to gather information
+from the GitHub API
+"""
 import logging
+from typing import Dict, List, Any
+import requests
 
 logger = logging.getLogger(__name__)
 
 
-def __get_ids_from_txt__(path: str) -> list:
+def __get_ids_from_txt__(path: str) -> List[int]:
     with open(path) as f:
         lines = f.read().splitlines()
         ids = [int(i) for i in lines]
@@ -12,16 +17,15 @@ def __get_ids_from_txt__(path: str) -> list:
 
 
 def clean_results(
-    results: dict,
-    key_list: list = ["id", "node_id", "name", "owner", "html_url"],
-) -> dict:
+    results: List[Any],
+) -> Dict[int, Dict[str, Any]]:
     """
     :param results: Results to be clean in dictionary form
     :param key_list: List of keys to be taken
     :returns: dictionary with clean lists
     """
     dictionary_of_list = {}
-
+    key_list = ["id", "node_id", "name", "owner", "html_url"]
     for item in results:
         if "id" in item:
             repo_id = item["id"]
@@ -34,12 +38,12 @@ def clean_results(
 
 def get_subfeatures(
     session: requests.Session,
-    headers: dict,
-    features: list,
+    headers: Dict[str, str],
+    features: List[str],
     object_id: int,
     object_url: str,
     sub_url: str,
-) -> dict:
+) -> Dict[int, List[Dict[str, Any]]]:
     """
     :param session: Active request session
     :param headers: Headers for query with active session
@@ -73,15 +77,13 @@ def get_subfeatures(
                     try:
                         results.extend(res.json())
                     except Exception as error:
-                        print(f"Error: {error}")
-                        print(f"Could not extend: {res.json()}")
+                        logger.error("Could not extend: %s...\nError: %s",
+                                     res.json(), error)
         else:
             results = {}
-    print(object_id)
-    element_dict = {}  # type: dict[str,str]
+    element_dict = {}  # type: dict[str, Any]
     subfeature_list = []
     if isinstance(results, list):
-        print(results)
         for element in results:
             element_dict = {}
             for feature in features:

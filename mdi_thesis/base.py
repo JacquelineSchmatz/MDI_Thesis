@@ -9,6 +9,7 @@ and then choose `flask` as template.
 """
 # from datetime import date
 import json
+from typing import Dict, List, Any
 import requests
 import constants
 import utils
@@ -35,20 +36,21 @@ class Request:
         self.session = requests.Session()
         self.response = requests.Response()
         self.selected_repos_dict = {}  # type: dict[int, dict]
-        self.data_dict = {}  # type: dict[int, dict]
+        self.repository_dict = {}  # type: dict[int, list[dict[str, Any]]]
         query_features_file = open(
             "mdi_thesis/query_features.json", encoding="utf-8")
         self.query_features = json.load(query_features_file)
 
     def select_repos(
         self,
+        repo_list: List[int],
         repo_nr: int = 100,
         language: str = "python",
         sort: str = "stars",
-        repo_list: list = [],
         order: str = "desc",
         help_wanted_issues: str = "True",
-    ) -> list:
+        
+    ) -> List[Dict[str, Any]]:
         """
         Select Repositories according to Parameters
         :param repo_nr: Number of queried repositories.
@@ -57,7 +59,7 @@ class Request:
         :param repo_list: List with repositories if preselected
         :returns: List with dictionaries of selected repositories
         """
-        selected_repos_list = []
+        selected_repos = []
         if repo_list:
             for item in repo_list:
                 url = f"https://api.github.com/repositories/{item}"
@@ -69,7 +71,7 @@ class Request:
                         response.links["next"]["url"], headers=self.headers
                     )
                     results.extend(res.json())
-                selected_repos_list.append(results)
+                selected_repos.append(results)
 
         else:
             search_url = (
@@ -92,7 +94,7 @@ class Request:
                 search_url, headers=self.headers, timeout=100)
             results = response.json()
             try:
-                results_dict = results["items"]
+                results_items = results["items"]
             except Exception as err:
                 logger.error("Unexpected %s, %s", err, type(err))
                 logger.debug("Error raised at data result: %s", results)
@@ -108,17 +110,16 @@ class Request:
                 )
                 if "items" in res.json():
                     next_res = res.json()["items"]
-                    results_dict.extend(next_res)
-            selected_repos_list = results_dict[:repo_nr]
+                    results_items.extend(next_res)
+            selected_repos = results_items[:repo_nr]
+        self.selected_repos_dict = utils.clean_results(selected_repos)
 
-        self.selected_repos_dict = utils.clean_results(selected_repos_list)
-
-        return selected_repos_list
+        return selected_repos
 
     def get_repo_request(
         self,
-        queried_features: list = [],
-    ):
+        queried_features: List[str],
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Calls functions which perform actual query.
         :param queried_features: List with gathered features
@@ -126,8 +127,6 @@ class Request:
         """
         logger.info("Getting request information for feature(s): %s",
                     queried_features)
-        request_url_1 = ""
-        request_url_2 = ""
         feature_list = []  # type: list[str]
         query_dict = {}  # type: dict[str, list]
 
@@ -147,15 +146,20 @@ class Request:
 
         request_data_dict = {}
         for param, query in query_dict.items():
-            param_dict = self.get_repository_data(
+            param_list = self.get_repository_data(
                 feature_list=query[0],
                 request_url_1=query[1],
                 request_url_2=query[2],
             )
-            request_data_dict[param] = param_dict
+            request_data_dict[param] = param_list
         return request_data_dict
 
-    def get_single_object(self, feature: str) -> dict:
+    def get_single_object(self,
+                          feature: str
+                          ) -> Dict[int,
+                                    List[Dict[int,
+                                              List[Dict[str,
+                                                        Any]]]]]:
         """
         Function to retrieve issues and the comments for each.
         Note: Issues also contain pull requests.
@@ -170,6 +174,7 @@ class Request:
         request_url_3 = self.query_features[0].get(
             feature)[0].get("request_url_3")
         logger.info("Starting query for repository request...")
+        objects_per_repo = []  # objects_per_repo type: List[Dict[str, Any]]
         objects_per_repo = self.get_repo_request(
             queried_features=[feature]).get(
             feature
@@ -183,7 +188,6 @@ class Request:
             object_list = []
             url = request_url_1 + str(repository) + request_url_2
             objects = objects_per_repo.get(repository)
-            print(objects)  # ToDo: Check duplicate objects
             object_counter = 0
             for obj in objects:
                 object_counter += 1
@@ -206,8 +210,8 @@ class Request:
         return single_object_dict
 
     def get_repository_data(
-        self, feature_list: list, request_url_1: str, request_url_2: str
-    ):
+        self, feature_list: List[str], request_url_1: str, request_url_2: str
+    ) -> Dict[int, List[Dict[str, Any]]]:
         """
         Query data from repositories
         :param feature_list: Features are the information,
@@ -253,11 +257,11 @@ class Request:
                     logger.info("Getting responses for all pages...")
                     for page in range(2, int(nr_of_pages) + 1):
                         logger.info("Query page %s of %s", page, nr_of_pages)
-                        url = (str(url_repo)+
-                               "?simple=yes&per_page="+
-                               str(self.results_per_page)+
-                               "&page="+
-                               str(page)) 
+                        url = (str(url_repo) +
+                               "?simple=yes&per_page=" +
+                               str(self.results_per_page) +
+                               "&page=" +
+                               str(page))
                         res = self.session.get(
                             url, headers=self.headers, timeout=100)
                         logging.info("Extending results...")
@@ -269,21 +273,22 @@ class Request:
                                 res.json(), error)
 
             logger.info("Finished getting responses for all queries.")
-            return_data = []
+            element_list = []  # element_list type: List[Dict[str, Any]]
             if isinstance(results, list):
                 for element in results:
-                    element_dict = {}
+                    element_dict = {}  # element_dict type: Dict[str, Any]
                     for feature in feature_list:
                         element_dict[feature] = element.get(feature)
-                    return_data.append(element_dict)
+                    element_list.append(element_dict)
 
             elif isinstance(results, dict):
-                return_data = {}
+                element_dict = {}  # element_dict type: Dict[str, Any]
                 for feature in feature_list:
-                    return_data[feature] = results.get(feature)
-            self.data_dict[repo_id] = return_data
+                    element_dict[feature] = results.get(feature)
+                element_list = [element_dict]
+            self.repository_dict[repo_id] = element_list
         logger.info("Done getting repository data.")
-        return self.data_dict
+        return self.repository_dict
 
     def __del__(self):
         self.session.close()
@@ -302,9 +307,14 @@ def main():
     # Statement for selecting repositories according to list (for developing)
     selected_repos.select_repos(repo_list=repo_ids)
 
-    print(selected_repos.selected_repos_dict)
+    # print(selected_repos.selected_repos_dict)
 
-    # selected_repos.get_single_object(feature="issue_comments")
+    # print(selected_repos.get_single_object(feature="issue_comments"))
+    
+    print(selected_repos.get_repo_request(["community_health"]))
+    # .get("community_health")  # .get(191113739))
+    print(len(selected_repos.get_repo_request(["community_health"])))
+    # .get("community_health")  # .get(191113739)))
 
 
 if __name__ == "__main__":
