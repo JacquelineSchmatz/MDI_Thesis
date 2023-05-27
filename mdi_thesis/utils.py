@@ -32,33 +32,6 @@ def clean_results(
     return dictionary_of_list
 
 
-def get_comments(
-    headers: dict, features: list, comment_object: int, object_url: str
-) -> dict:
-    """
-    :param object: Object from which the concerning comments are queryied
-    (e.g. pull, issue)
-    :param object_url:
-    Base url to which the object id is added to query the information.
-    :return: Dictionary with the object id and the concerning comments
-    """
-
-    comment_dict = {}
-    url = object_url + str(comment_object) + "/comments"
-    response = requests.get(url, headers=headers, timeout=100)
-    results = response.json()
-    element_dict = {}
-    if results:
-        for element in results:
-            element_dict = {}
-            for feature in features:
-                element_dict[feature] = element.get(feature)
-        comment_dict[comment_object] = element_dict
-    else:
-        comment_dict[comment_object] = {}
-    return comment_dict
-
-
 def get_subfeatures(
     session: requests.Session,
     headers: dict,
@@ -68,10 +41,15 @@ def get_subfeatures(
     sub_url: str,
 ) -> dict:
     """
-    :param object: Object from which the concerning comments are queryied
-    (e.g. pull, issue)
+    :param session: Active request session
+    :param headers: Headers for query with active session
+    :param features: Which features are queried from GitHub
+    :param object_id: Object ID,
+     from which the concerning comments are queryied (e.g. pull, issue)
     :param object_url:
     Base url to which the object id is added to query the information.
+    :param sub_url: Sub url referring to the subfeatures of a certain
+    information (e.g. comments as subfeatures for issues as features)
     :return: Dictionary with the object id and the concerning comments
     """
     logger.info("Starting querying subfeatures.")
@@ -100,7 +78,7 @@ def get_subfeatures(
         else:
             results = {}
     print(object_id)
-    element_dict = {}
+    element_dict = {}  # type: dict[str,str]
     subfeature_list = []
     if isinstance(results, list):
         print(results)
@@ -116,7 +94,7 @@ def get_subfeatures(
         subfeature_list.append(element_dict)
         subfeature_dict[object_id] = subfeature_list
     else:
-        subfeature_dict[object_id] = {}
+        subfeature_dict[object_id] = []
     return subfeature_dict
 
 
