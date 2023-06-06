@@ -11,9 +11,10 @@ and then choose `flask` as template.
 import json
 from typing import Dict, List, Any
 import requests
-import constants
-import utils
+import mdi_thesis.constants as constants
+import mdi_thesis.utils as utils
 import logging
+import os
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
@@ -37,8 +38,7 @@ class Request:
         self.response = requests.Response()
         self.selected_repos_dict = {}  # type: dict[int, dict]
         self.repository_dict = {}  # type: dict[int, list[dict[str, Any]]]
-        query_features_file = open(
-            "mdi_thesis/query_features.json", encoding="utf-8")
+        query_features_file = open(os.path.join(os.path.dirname(__file__), 'query_features.json'))
         self.query_features = json.load(query_features_file)
 
     def select_repos(
