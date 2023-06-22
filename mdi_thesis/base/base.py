@@ -45,8 +45,8 @@ class Request:
 
     def select_repos(
         self,
+        repo_nr: int,
         repo_list: List[int],
-        repo_nr: int = 100,
         language: str = "python",
         sort: str = "stars",
         order: str = "desc",
@@ -103,8 +103,9 @@ class Request:
                 raise
             
             if "last" in response.links:
-                nr_of_pages = response.links.get(
-                    "last").get("url").split("&page=", 1)[1]
+                # nr_of_pages = response.links.get(
+                #     "last").get("url").split("&page=", 1)[1]
+                nr_of_pages = round(repo_nr/self.results_per_page)
                 if results:
                     if int(nr_of_pages) > 1 and repo_nr_queried < repo_nr:
                         repo_nr_queried += self.results_per_page
@@ -128,7 +129,6 @@ class Request:
                                     res.json(), error)
 
             selected_repos = results_items[:repo_nr]
-        print(selected_repos)
         self.selected_repos_dict = utils.clean_results(
             selected_repos)
 
@@ -249,6 +249,7 @@ class Request:
 
         :return: Repository data of the selected features.
         """
+        repository_dict = {}
         filter_str = ""
         if filters:
             for key, value in filters.items():
@@ -320,9 +321,9 @@ class Request:
                 for feature in feature_list:
                     element_dict[feature] = results.get(feature)
                 element_list = [element_dict]
-            self.repository_dict[repo_id] = element_list
+            repository_dict[repo_id] = element_list
         logger.info("Done getting repository data.")
-        return self.repository_dict
+        return repository_dict
 
     def get_context_information(self, main_feature: str,
                                 sub_feature: str, filters: Dict[str, Any]

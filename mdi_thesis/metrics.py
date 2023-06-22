@@ -17,12 +17,13 @@ formatter = logging.Formatter(
     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.CRITICAL)
+logger.setLevel(logging.DEBUG)
 
 
-def select_data(path: str = "",
-                repo_nr: int = 100,
-                order: str = "desc"):
+def select_data(repo_nr: int = 0,
+                path: str = "",
+                order: str = "desc"
+                ):
     """
     :param path:
     :return:
@@ -31,7 +32,7 @@ def select_data(path: str = "",
     if path:
         # Statement for selecting repositories according to list
         repo_ids = utils.__get_ids_from_txt__(path=path)
-        selected_repos.select_repos(repo_list=repo_ids)
+        selected_repos.select_repos(repo_list=repo_ids, repo_nr=repo_nr)
     else:
         # Statement for selecting number of queried repositories
         selected_repos.select_repos(
@@ -101,8 +102,82 @@ def technical_fork():
     pass
 
 
-def criticality_score():
-    pass
+def criticality_score(data_object):
+    """
+    IN PROGRESS!!!!!!!!!!!!!
+    """
+    today = datetime.today()
+    age_in_months = {}
+    filter_date = date.today() - relativedelta.relativedelta(years=1)
+    filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # base_data = data_object.query_repository(["repository",
+    #                                           "contributors"],
+    #                                          filters={})
+    # for repo, data in base_data.get("repository").items():
+    #     created_at = data[0].get("created_at")
+    #     created_at = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%SZ')
+    #     updated_at = data[0].get("updated_at")
+    #     updated_at = datetime.strptime(updated_at, '%Y-%m-%dT%H:%M:%SZ')
+    #     dates = relativedelta.relativedelta(today, created_at)
+    #     months = dates.months + (dates.years*12)
+    #     age_in_months[repo] = months
+    #     diff_updated_today = relativedelta.relativedelta(today, updated_at)
+    #     diff_updated_today = diff_updated_today.months + (
+    #         diff_updated_today.years*12)
+        
+        # print(f"Updated since: {diff_updated_today}")
+    # repo_contributions = utils.get_contributors(base_data.get("contributors"))
+    # repo_organizations = utils.get_organizations(
+    #     contributors_data=base_data.get("contributors"),
+    #     data_object=data_object)
+    # print(repo_organizations)
+
+    base_data = data_object.query_repository(["commits", "release"],
+                                             filters={"since": filter_date})
+    repo_commits = {}
+    for repo, data in base_data.get("commits").items():
+        repo_commit_dates = []
+        for commit in data:
+            commit_date = commit.get("commit").get("author").get("date")
+            commit_date = datetime.strptime(commit_date, '%Y-%m-%dT%H:%M:%SZ')
+            repo_commit_dates.append(commit_date)
+        # repo_commits[repo] = repo_commit_dates
+
+        if repo_commit_dates:
+            # Sort the datetime list
+            repo_commit_dates.sort()
+            earliest_date = repo_commit_dates[0].date()
+            latest_date = repo_commit_dates[-1].date()
+            num_weeks = (latest_date - earliest_date).days // 7 + 1
+            # Count the number of elements per week
+            elements_per_week = [0] * num_weeks
+            for commit_datetime in repo_commit_dates:
+                week_index = (commit_datetime.date() - earliest_date).days // 7
+                elements_per_week[week_index] += 1
+            average_per_week = sum(elements_per_week) / num_weeks
+            repo_commits[repo] = average_per_week
+        else:
+            repo_commits[repo] = []
+    
+    releases_per_repo = {}
+    for repo, data in base_data.get("release").items():
+        release_list = []
+        print(repo)
+        for release in data:
+            published_at = release.get("published_at")
+            published_at = datetime.strptime(
+                published_at, '%Y-%m-%dT%H:%M:%SZ')
+            dates = relativedelta.relativedelta(today, published_at)
+            if dates.years == 0:
+                release_list.append(published_at)
+        num_releases = len(release_list)
+        releases_per_repo[repo] = num_releases
+    # print(repo_commits)
+    # print(releases_per_repo)
+    # print("Average number of elements per week:", average_per_week)
+    # print(age_in_months)
+
+
 
 
 def pull_requests():
@@ -173,11 +248,12 @@ def main():
 
     # selected_repos.select_repos(repo_list=repo_ids)
     obj = select_data(path=repo_ids_path)
+    # obj = select_data(repo_nr=1, order="desc")
     print(obj)
     # print(maturity_level(obj))
     # print(osi_approved_license(obj))
     # print(obj.selected_repos_dict)
-
+    print(criticality_score(obj))
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))

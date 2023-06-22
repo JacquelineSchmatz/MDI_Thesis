@@ -139,6 +139,18 @@
                 "feature_key": "login"
             }
         ],
+        "organization_users": [
+            {
+                "request_url_1": "https://api.github.com/users/",
+                "request_url_2": "/orgs",
+                "request_url_3": "",
+                "feature_list": [
+                    "login",
+                    "description"
+                ],
+                "feature_key": "login"
+            }
+        ],
         "commits": [
             {
                 "request_url_1": "https://api.github.com/repositories/",

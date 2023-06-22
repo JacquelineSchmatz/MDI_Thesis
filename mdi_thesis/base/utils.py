@@ -208,3 +208,34 @@ def get_repo_release_score(repo_data) -> Dict[int, int]:
         score = score/5
         release_score[repo] = score
     return release_score
+
+def get_contributors(contributors_data):
+    repo_contributions = {}
+    for repo, data in contributors_data.items():
+        contributions_nr = 0
+        for user in data:
+            contributions = user.get("contributions")
+            contributions_nr += contributions
+        repo_contributions[repo] = contributions_nr
+    return repo_contributions
+
+def get_organizations(contributors_data, data_object):
+    repo_organizations = {}
+    for repo, contributors in contributors_data.items():
+        contrib_list = []
+        for user in contributors:
+            contrib_list.append(user.get("login"))
+        # user_company = data_object.query_repository(["users"],
+        #                                             repo_list=contrib_list,
+        #                                             filters={})
+        users = data_object.query_repository(["organization_users"],
+                                             repo_list=contrib_list,
+                                             filters={})
+        distinct_organizations = set()
+        for user, data in users.get("organization_users").items():
+            for organization in data:
+                org_name = organization.get("login")
+                if org_name:
+                    distinct_organizations.add(org_name)
+        repo_organizations[repo] = len(distinct_organizations)
+    return repo_organizations
