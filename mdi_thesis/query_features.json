@@ -121,7 +121,14 @@
             "request_url_2": "/forks",
             "request_url_3": "",
             "feature_list": [
-                "id"]
+                "id",
+                "forks_count",
+                "open_issues_count",
+                "is_template",
+                "has_downloads",
+                "archived",
+                "disabled",
+                "subscribers_count"]
         }
     ,
     "pull_requests":
@@ -137,8 +144,7 @@
                 "updated_at",
                 "closed_at",
                 "pushed_at",
-                "merged_at",
-                "head"
+                "merged_at"
             ]
         }
     ,

@@ -22,6 +22,8 @@ logger.addHandler(handler)
 logger.setLevel(logging.ERROR)
 
 
+
+
 def select_data(repo_nr: int = 0,
                 path: str = "",
                 order: str = "desc"
@@ -98,11 +100,9 @@ def osi_approved_license(data_object) -> Dict[int, bool]:
 
 def technical_fork(data_object):
     """
-    Technical Fork left out due to too much calculation costs. 
-    May reconsider different metric instead.
+    Use number of forks as raw number from repository information!
     """
-    fork_data = data_object.query_repository(["forks"], filters={})
-    return fork_data
+    pass
 
 
 def criticality_score(data_object) -> Dict[int, float]:
@@ -297,13 +297,99 @@ def criticality_score(data_object) -> Dict[int, float]:
     return criticality_score_per_repo
 
 
-def pull_requests():
+def pull_requests(data_object) -> Dict[int,Dict[str,float]]:
+    """
+    Contains information about:
+    - Total number of pulls
+    - Average closing time (Difference of creation and close date)
+    - Ratio per state (open, closed and merged)
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Parameter names and values
+    """
+    pulls_data = data_object.query_repository(["pull_requests"],
+                                              filters={"state": "all"})
+    pull_results = {}
+    for repo, data in pulls_data.get("pull_requests").items():
+        state_open = 0
+        state_closed = 0
+        pulls_merged = 0
+        total_pulls = len(data)
+        date_diffs = []
+        for pull in data:
+            state = pull.get("state")
+            closed_at = pull.get("closed_at")
+            created_at = pull.get("created_at")
+            merged_at = pull.get("merged_at")
+            created_at = datetime.strptime(created_at,
+                                           '%Y-%m-%dT%H:%M:%SZ')
+            if closed_at:
+                closed_at = datetime.strptime(closed_at,
+                                              '%Y-%m-%dT%H:%M:%SZ')
+            if merged_at:
+                merged_at = datetime.strptime(merged_at,
+                                              '%Y-%m-%dT%H:%M:%SZ')
+                pulls_merged += 1
+                if closed_at:
+                    if closed_at == merged_at:
+                        date_diff = closed_at - created_at
+                        date_diffs.append(date_diff.days)
+            if state == "open":
+                state_open += 1
+            elif state == "closed":
+                state_closed += 1
+        avg_date_diff = round(np.mean(date_diffs))
+        ratio_open = state_open / total_pulls
+        ratio_closed = state_closed / total_pulls
+        ratio_merged = pulls_merged / total_pulls
+        pull_results[repo] = {"total_pulls": total_pulls,
+                              "avg_pull_closed_days": avg_date_diff,
+                              "ratio_open_total": ratio_open,
+                              "ratio_closed_total": ratio_closed,
+                              "ratio_merged_total": ratio_merged}
 
-    pass
+    return pull_results
 
 
-def project_velocity():
-    pass
+def project_velocity(data_object):
+    """
+
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    """
+    velocity_results = {}
+    issues = data_object.query_repository(
+        ["issue"],
+        filters={"state": "all"})
+    for repo, data in issues.get("issue").items():
+        closed_issues = 0
+        open_issues = 0
+        total_issues = len(data)
+        date_diffs = []
+        for issue in data:
+            state = issue.get("state")
+            created_at = issue.get("created_at")
+            created_at = datetime.strptime(created_at,
+                                           '%Y-%m-%dT%H:%M:%SZ')
+            if state == "open":
+                open_issues += 1
+            if state == "closed":
+                closed_issues += 1
+                closed_at = issue.get("closed_at")
+                if closed_at:
+                    closed_at = datetime.strptime(closed_at,
+                                                  '%Y-%m-%dT%H:%M:%SZ')
+                date_diff = closed_at - created_at
+                date_diffs.append(date_diff.days)
+        avg_date_diff = round(np.mean(date_diffs))
+        ratio_open = open_issues / total_issues
+        ratio_closed = closed_issues / total_issues
+        velocity_results[repo] = {"total_issues": total_issues,
+                                  "avg_issue_resolving_days": avg_date_diff,
+                                  "ratio_open_total": ratio_open,
+                                  "ratio_closed_total": ratio_closed}
+
+    return velocity_results
 
 
 def github_community_health_percentage():
@@ -410,7 +496,8 @@ def main():
     # print(osi_approved_license(obj))
     # print(obj.selected_repos_dict)
     # print(criticality_score(obj))
-    print(technical_fork(obj))
+    # print(pull_requests(obj))
+    print(project_velocity(obj))
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))

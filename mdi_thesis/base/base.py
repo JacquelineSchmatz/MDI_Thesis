@@ -47,6 +47,7 @@ class Request:
         query_features_file = open(
             "mdi_thesis/query_features.json", encoding="utf-8")
         self.query_features = json.load(query_features_file)
+        sub_results = {}
 
     def select_repos(
         self,
@@ -544,6 +545,7 @@ class Request:
             dependency_dict[repo_id] = dependency_packages
 
         return dependency_dict
+
 
 #    def __del__(self):
 #       self.session.close()
