@@ -1,0 +1,53 @@
+
+{
+    "created_since": 
+        {
+            "weight": 1,
+            "max_threshold": 120
+        },
+    "updated_since": 
+        {
+            "weight": -1,
+            "max_threshold": 120
+        },
+    "contributor_count":
+        {
+            "weight": 2,
+            "max_threshold": 5000
+        },
+    "org_count":
+        {
+            "weight": 1,
+            "max_threshold": 10
+        },
+    "commit_frequency":
+        {
+            "weight": 1,
+            "max_threshold": 1000
+        },
+    "recent_releases_count":
+        {
+            "weight": 0.5,
+            "max_threshold": 26
+        },
+    "closed_issues_count":
+        {
+            "weight": 0.5,
+            "max_threshold": 5000
+        },
+    "updated_issues_count":
+        {
+            "weight": 0.5,
+            "max_threshold": 5000
+        },
+    "comment_frequency":
+        {
+            "weight": 1,
+            "max_threshold": 15
+        },
+    "dependents_count":
+        {
+            "weight": 2,
+            "max_threshold": 500000
+        }
+}

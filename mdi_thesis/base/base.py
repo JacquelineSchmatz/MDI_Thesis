@@ -9,12 +9,17 @@ and then choose `flask` as template.
 """
 # from datetime import date
 import json
+import time
+from bs4 import BeautifulSoup
 from typing import Dict, List, Any
 import requests
 import mdi_thesis.constants as constants
 import mdi_thesis.base.utils as utils
 import logging
 import os
+import base64
+import re
+
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
@@ -153,13 +158,13 @@ class Request:
         if queried_features:
             for feature in queried_features:
                 feature_list = (
-                    self.query_features[0].get(feature)[0].get("feature_list")
+                    self.query_features.get(feature).get("feature_list")
                 )
                 request_url_1 = (
-                    self.query_features[0].get(feature)[0].get("request_url_1")
+                    self.query_features.get(feature).get("request_url_1")
                 )
                 request_url_2 = (
-                    self.query_features[0].get(feature)[0].get("request_url_2")
+                    self.query_features.get(feature).get("request_url_2")
                 )
                 query_dict[feature] = [
                     feature_list, request_url_1, request_url_2]
@@ -189,12 +194,12 @@ class Request:
         :return: A dictionary with the repository id,
         its issue ids and the comments per issue.
         """
-        request_url_1 = self.query_features[0].get(
-            feature)[0].get("request_url_1")
-        request_url_2 = self.query_features[0].get(
-            feature)[0].get("request_url_2")
-        request_url_3 = self.query_features[0].get(
-            feature)[0].get("request_url_3")
+        request_url_1 = self.query_features.get(
+            feature).get("request_url_1")
+        request_url_2 = self.query_features.get(
+            feature).get("request_url_2")
+        request_url_3 = self.query_features.get(
+            feature).get("request_url_3")
         logger.info("Starting query for repository request...")
         objects_per_repo = []  # objects_per_repo type: List[Dict[str, Any]]
         objects_per_repo = self.query_repository(
@@ -202,10 +207,10 @@ class Request:
             feature
         )  # Object e.g. issue or commit
         logger.info("Finished query for repository request.")
-        object_key = self.query_features[0].get(feature)[0].get("feature_key")
+        object_key = self.query_features.get(feature).get("feature_key")
         single_object_dict = {}
-        subfeature_list = self.query_features[0].get(
-            feature)[0].get("subfeature_list")
+        subfeature_list = self.query_features.get(
+            feature).get("subfeature_list")
         for repository in objects_per_repo:
             object_list = []
             url = request_url_1 + str(repository) + request_url_2
@@ -325,6 +330,120 @@ class Request:
         logger.info("Done getting repository data.")
         return repository_dict
 
+    def get_dependents(self) -> Dict[int, int]:
+        """
+        Get dependencies or dependents. Dependents can concern repositories
+        and packages. In this function only the packages are considered. 
+        Dependents can exist for multiple packages of a repository/project,
+        in this case all packages are included.
+        :param keyword: Keyword to select either dependents or dependencies
+        :return: Repository ids and the number of dependents or dependencies
+        """
+        dependents_count = {}
+        for repo, data in self.selected_repos_dict.items():
+            repo_name = data.get("name")
+            repo_owner_login = data.get("owner").get("login")
+            logger.info("Getting repository %s", repo)
+            url_1 = self.query_features.get("dependents").get("request_url_1")
+            url_2 = self.query_features.get("dependents").get("request_url_2")
+            url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
+            count = 0
+            for i in range(0, 3):
+                try:
+                    response = self.session.get(url)
+                    soup = BeautifulSoup(response.content, "html.parser")
+                    dependents_box = soup.find("div", {"id": "dependents"})
+                    menu = dependents_box.select(
+                        "details",
+                        {"class": "select-menu.float-right.position-relative.details-reset.details-overlay"})
+                    if menu:
+                        options = menu[0].find_all(
+                            "div", {"class": "select-menu-list"})
+                        if options:
+                            for row in options[0].find_all("a", href=True):
+                                # text = row.find(
+                                #     "span",
+                                #     {"class": "select-menu-item-text"}
+                                #     ).text.strip()
+                                href = re.search(
+                                    "href=\"(.+?)\"\s",
+                                    str(row)).group(1)
+                                pattern = "dependents?"
+                                href_split = href.replace(pattern, f" {pattern} ").split(" ")
+                                href_url = url_1 + href_split[0] + href_split[1] + "dependent_type=PACKAGE&" + href_split[2]
+                                href_response = self.session.get(
+                                    href_url)
+                                href_soup = BeautifulSoup(
+                                    href_response.content,
+                                    "html.parser")
+                                box = href_soup.find(
+                                    "a", {"class": "btn-link selected"}
+                                    ).text
+                                count += int(
+                                    box.strip().split(" ")[0].replace(",", ""))
+                        else:
+                            box = soup.find(
+                                "a", {"class": "btn-link selected"}).text
+                            count = int(
+                                box.strip().split(" ")[0].replace(",", ""))
+                    else:
+                        box = soup.find(
+                            "a",
+                            {"class": "btn-link selected"}).text
+                        count = int(
+                            box.strip().split(" ")[0].replace(",", ""))
+                    break
+                except requests.exceptions.ConnectionError:
+                    continue
+            dependents_count[repo] = count
+        return dependents_count
+
+    def get_dependencies(self) -> Dict[int, int]:
+        """
+        Get dependencies or dependents. Dependents can concern repositories
+        and packages. In this function only the packages are considered. 
+        Dependents can exist for multiple packages of a repository/project,
+        in this case all packages are included.
+        :param keyword: Keyword to select either dependents or dependencies
+        :return: Repository ids and the number of dependents or dependencies
+        """
+        dependencies_count = {}
+        for repo, data in self.selected_repos_dict.items():
+            repo_name = data.get("name")
+            repo_owner_login = data.get("owner").get("login")
+            logger.info("Getting repository %s", repo)
+            url_1 = self.query_features.get("dependencies").get("request_url_1")
+            url_2 = self.query_features.get("dependencies").get("request_url_2")
+            url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
+            nextExists = True
+            result_cnt = 500000
+            results = []
+            while nextExists and len(results) < result_cnt:
+                response = self.session.get(url)
+                soup = BeautifulSoup(response.content, "html.parser")
+                dependencies_box = soup.find("div", {"id": "dependencies"})
+                dependencies = dependencies_box.find("div", {"class": "Box", "data-view-component": "true"})
+                if dependencies:
+                    for t in dependencies.find_all("li", {"class": "Box-row", "data-view-component": "true"}):
+                        results.append(t)
+                else:
+                    break
+                nextExists = False
+                try:
+                    for u in soup.find(
+                        "div", {"class": "paginate-container"}).find_all('a'):
+                        if u.text == "Next":
+                            nextExists = True
+                            url = url_1 + u["href"]
+                except Exception as href_info:
+                    logger.info(href_info)
+                    time.sleep(2)
+                    nextExists = True
+            dependencies_count[repo] = len(results)
+            # for element in results:
+            #    print(element["name"] + ", " + str(element["stars"]))
+        return dependencies_count
+
     def get_context_information(self, main_feature: str,
                                 sub_feature: str, filters: Dict[str, Any]
                                 ) -> Dict[int, List[Dict[str, Any]]]:
@@ -334,14 +453,14 @@ class Request:
         :return: Dictionary with context information of main feature.
         """
         main_data = self.query_repository([main_feature], filters=filters)
-        request_url_1 = self.query_features[0].get(
-            sub_feature)[0].get("request_url_1")
-        request_url_2 = self.query_features[0].get(
-            sub_feature)[0].get("request_url_2")
-        feature_list = self.query_features[0].get(
-            sub_feature)[0].get("feature_list")
-        feature_key = self.query_features[0].get(
-            sub_feature)[0].get("feature_key")
+        request_url_1 = self.query_features.get(
+            sub_feature).get("request_url_1")
+        request_url_2 = self.query_features.get(
+            sub_feature).get("request_url_2")
+        feature_list = self.query_features.get(
+            sub_feature).get("feature_list")
+        feature_key = self.query_features.get(
+            sub_feature).get("feature_key")
         return_data = {}
         for repository, data in main_data.get(main_feature).items():
             data_list = []
@@ -353,10 +472,74 @@ class Request:
                             element_url, headers=self.headers, timeout=100)
                 sub_data = result.json()
                 for feature in feature_list:
-                    element_dict[feature] = sub_data.get(feature)
+                    if isinstance(sub_data, dict):
+                        element_dict[feature] = sub_data.get(feature)
+                    else:
+                        element_dict[feature] = sub_data
                 data_list.append(element_dict)
             return_data[repository] = data_list
         return return_data
 
+    def get_dependency_packages(self):
+        """
+        Get dependencies from the requirements.txt file.
+        If no file is found, the setup.py file is retrieved.
+        """
+        request_url_1 = (
+            self.query_features.get("dependencies_alt").get("request_url_1")
+        )
+        request_url_2 = (
+            self.query_features.get("dependencies_alt").get("request_url_2")
+        )
+        request_url_3 = (
+            self.query_features.get("dependencies_alt").get("request_url_3")
+        )
+        dependency_dict = {}
+        encoding = "utf-8"
+        for repo_id in self.selected_repos_dict:
+            dependency_packages = []
+            url = request_url_1 + str(repo_id) + request_url_2
+            response = self.session.get(url, headers=self.headers, timeout=100)
+            if response.status_code == 200:
+                content_data = response.json()
+                encoded_content = content_data['content']
+                requirements_content = base64.b64decode(
+                    encoded_content).decode(
+                    encoding)
+
+                dependencies = requirements_content.split("\n")
+                dependency_packages = [dependency.strip()
+                                       for dependency in dependencies
+                                       if dependency.strip()]
+            else:
+                logger.info("Failed to fetch requirements.txt file: %s",
+                            response.status_code)
+                url = request_url_1 + str(repo_id) + request_url_3
+                response = self.session.get(url,
+                                            headers=self.headers,
+                                            timeout=100)
+                if response.status_code == 200:
+                    content_data = response.json()
+                    encoded_content = content_data['content']
+                    requirements_content = base64.b64decode(
+                        encoded_content).decode(
+                        encoding)
+                    dependencies = re.findall(r"install_requires\s*=\s*\[([^\]]+)\]",
+                                              requirements_content)
+                    if not dependencies:
+                        dependencies = re.findall(r"requirements\s*=\s*\[([^\]]+)\]",
+                                                  requirements_content)
+                    if dependencies:
+                        dependencies = dependencies[0].replace(
+                            "'", "").replace(
+                            '"', "").split(
+                            ",")
+                        dependency_packages = [dependency.strip()
+                                               for dependency in dependencies
+                                               if dependency != ""]
+            dependency_dict[repo_id] = dependency_packages
+
+        return dependency_dict
+
 #    def __del__(self):
-#        self.session.close()
+#       self.session.close()
