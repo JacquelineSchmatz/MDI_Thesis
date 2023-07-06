@@ -19,7 +19,7 @@ formatter = logging.Formatter(
     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.CRITICAL)
+logger.setLevel(logging.ERROR)
 
 
 def select_data(repo_nr: int = 0,
@@ -96,17 +96,20 @@ def osi_approved_license(data_object) -> Dict[int, bool]:
     return results
 
 
-def technical_fork():
+def technical_fork(data_object):
     """
     Technical Fork left out due to too much calculation costs. 
     May reconsider different metric instead.
     """
-    pass
+    fork_data = data_object.query_repository(["forks"], filters={})
+    return fork_data
 
 
-def criticality_score(data_object):
+def criticality_score(data_object) -> Dict[int, float]:
     """
-    IN PROGRESS!!!!!!!!!!!!!
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: criticality_score per repository.
     """
 
     scores_per_repo = {}
@@ -117,7 +120,7 @@ def criticality_score(data_object):
                                               "contributors",
                                               "release"],
                                              filters={})
-    
+
     # created_since, updated_since
     logger.info("Getting created_since and updated_since...")
     for repo, data in base_data.get("repository").items():
@@ -146,7 +149,7 @@ def criticality_score(data_object):
         data_object=data_object)
     for repo, org_count in org_count.items():
         scores_per_repo[repo].update({"org_count": org_count})
-    
+
     # commit_frequency
     logger.info("Getting commit_frequency...")
     filter_date = date.today() - relativedelta.relativedelta(years=1)
@@ -179,13 +182,13 @@ def criticality_score(data_object):
                 week_index = (commit_datetime.date() - earliest_date).days // 7
                 elements_per_week[week_index] += 1
             average_per_week = sum(elements_per_week) / num_weeks
-            
+
         else:
             average_per_week = 0
             # commit_frequency[repo] = []
         commit_frequency[repo] = average_per_week
         scores_per_repo[repo].update({"commit_frequency": average_per_week})
-    
+
     # recent_releases_count
     logger.info("Getting recent_releases_count...")
     recent_releases_count = {}
@@ -275,36 +278,27 @@ def criticality_score(data_object):
         weight = elements.get("weight")
         weight_sum += weight
 
-        # for param, elements in weights.items():
-        #     form_log1 = np.log(1+)
-    
-    # IN PROGRESS:
-    # for repo, param in scores_per_repo.items():
-    #     form_1 = 1/weight_sum
-    #     sum_alpha = 0
-    #     for param_name, value in param.items():
-    #         print(param_name)
-    #         print(value)
-    #         log_1 = np.log(1 + value)
-    #         max_threshold = weights.get(param_name).get("max_threshold")
-    #         print(max_threshold)
-    #         if value > max_threshold:
-    #             val = max_threshold
-    #         else:
-    #             val = value
-    #         log_2 = np.log(1 + val)
-    #         print(weights.get(param_name).get("weight"))
-    #         print(log_1)
-    #         print(log_2)
-    #         res_1 = (weights.get(param_name).get("weight"))*(log_1/log_2)
-    #         sum_alpha += res_1
-    #         print(sum_alpha)
-    #     res_2 = form_1*sum_alpha
-    #     criticality_score_per_repo[repo] = res_2
-    # print(criticality_score_per_repo)
+    for repo, param in scores_per_repo.items():
+        form_1 = 1/weight_sum
+        sum_alpha = 0
+        for param_name, value in param.items():
+            log_1 = np.log(1 + value)
+            max_threshold = weights.get(param_name).get("max_threshold")
+            log_2 = np.log(1 + max(value, max_threshold))
+            if log_2 == 0:
+                res_fraction = 1
+            else:
+                res_fraction = log_1/log_2
+            weight = weights.get(param_name).get("weight")
+            res_1 = weight*res_fraction
+            sum_alpha += res_1
+        res_2 = form_1*sum_alpha
+        criticality_score_per_repo[repo] = res_2
+    return criticality_score_per_repo
 
 
 def pull_requests():
+
     pass
 
 
@@ -415,7 +409,8 @@ def main():
     # print(maturity_level(obj))
     # print(osi_approved_license(obj))
     # print(obj.selected_repos_dict)
-    print(criticality_score(obj))
+    # print(criticality_score(obj))
+    print(technical_fork(obj))
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))

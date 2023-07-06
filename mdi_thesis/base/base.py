@@ -27,7 +27,7 @@ formatter = logging.Formatter(
     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.CRITICAL)
+logger.setLevel(logging.ERROR)
 
 
 class Request:
@@ -318,7 +318,13 @@ class Request:
                 for element in results:
                     element_dict = {}  # element_dict type: Dict[str, Any]
                     for feature in feature_list:
-                        element_dict[feature] = element.get(feature)
+                        try:
+                            element_dict[feature] = element.get(feature)
+                        except AttributeError as att_error:
+                            logger.error("Encountered Attribute Error %s \
+                                         /n At feature %s /n At element %s",
+                                         att_error, feature, element)
+                        continue
                     element_list.append(element_dict)
 
             elif isinstance(results, dict):
@@ -400,12 +406,10 @@ class Request:
 
     def get_dependencies(self) -> Dict[int, int]:
         """
-        Get dependencies or dependents. Dependents can concern repositories
-        and packages. In this function only the packages are considered. 
-        Dependents can exist for multiple packages of a repository/project,
-        in this case all packages are included.
+        Get dependencies of a repository
         :param keyword: Keyword to select either dependents or dependencies
         :return: Repository ids and the number of dependents or dependencies
+        TODO: Change packages to repositories and use distinct dependencies
         """
         dependencies_count = {}
         for repo, data in self.selected_repos_dict.items():
