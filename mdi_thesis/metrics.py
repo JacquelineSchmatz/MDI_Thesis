@@ -351,11 +351,15 @@ def pull_requests(data_object) -> Dict[int,Dict[str,float]]:
     return pull_results
 
 
-def project_velocity(data_object):
+def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
     """
-
+    Calculates information about a projects velocity concerning
+    issues and their resolving time.
     :param data_object: Request object, required to gather data
     of already selected repositories.
+    :return: Values for each information including the
+    total number of issues, the average issue resolving time in days,
+    and the ratio of open and closed issues to total issues.
     """
     velocity_results = {}
     issues = data_object.query_repository(
@@ -388,12 +392,56 @@ def project_velocity(data_object):
                                   "avg_issue_resolving_days": avg_date_diff,
                                   "ratio_open_total": ratio_open,
                                   "ratio_closed_total": ratio_closed}
-
     return velocity_results
 
 
-def github_community_health_percentage():
-    pass
+def github_community_health_percentage(data_object):
+    """
+    Retrieves information about the GitHub community health percentage metric.
+    As the formula introduced by GitHub is questionable, potential relevant
+    information is summarized by indicating,
+    if it is available (True) or not (False).
+    This is implied by the outdated formula,
+    referring to the existence of certain files
+    (readme, contributing, license, code of conduct).
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Scores and potentially relevant information
+    """
+    community_health_info = {}
+    community_health = data_object.query_repository(
+        ["community_health"],
+        filters={})
+    for repo, data in community_health.get("community_health").items():
+        data = data[0]
+        score = data.get("health_percentage")
+        description = bool(data.get("description"))
+        documentation = bool(data.get("documentation"))
+        code_of_conduct = bool(data.get("files").get("code_of_conduct"))
+        contributing = bool(data.get("files").get("contributing"))
+        issue_template = bool(data.get("files").get("issue_template"))
+        pull_request_template = bool(
+            data.get("files").get("pull_request_template"))
+        license_bool = bool(data.get("files").get("license"))
+        readme = bool(data.get("files").get("readme"))
+        info_list = [description, documentation, code_of_conduct,
+                     contributing, issue_template, pull_request_template,
+                     license_bool, readme]
+        true_count = info_list.count(True)
+        false_count = info_list.count(False)
+        infos = {"community_health_score": score,
+                 "true_count": true_count,
+                 "false_count": false_count,
+                 "description": description,
+                 "documentation": documentation,
+                 "code_of_conduct": code_of_conduct,
+                 "contributing": contributing,
+                 "issue_template": issue_template,
+                 "pull_request_template": pull_request_template,
+                 "license": license_bool,
+                 "readme": readme}
+        community_health_info[repo] = infos
+    return community_health_info
 
 
 def issues():
@@ -497,7 +545,8 @@ def main():
     # print(obj.selected_repos_dict)
     # print(criticality_score(obj))
     # print(pull_requests(obj))
-    print(project_velocity(obj))
+    # print(project_velocity(obj))
+    print(github_community_health_percentage(obj))
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))
