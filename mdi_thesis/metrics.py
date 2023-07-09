@@ -1,6 +1,7 @@
 """
 Module for metric calculations.
 """
+import timeit
 import json
 import logging
 from datetime import date, datetime
@@ -70,7 +71,7 @@ def maturity_level(data_object) -> Dict[int, int]:
     repo_metric_dict = {}
     for repo, score in age_score.items():
         score_sum = score + issue_score[repo] + release_score[repo]
-        result = int(score_sum/3 * 100)
+        result = round(score_sum/3 * 100)
         repo_metric_dict[repo] = result
     return repo_metric_dict
 
@@ -114,8 +115,6 @@ def criticality_score(data_object) -> Dict[int, float]:
 
     scores_per_repo = {}
     today = datetime.today()
-    created_since = {}
-    updated_since = {}
     base_data = data_object.query_repository(["repository",
                                               "contributors",
                                               "release"],
@@ -130,11 +129,9 @@ def criticality_score(data_object) -> Dict[int, float]:
         updated_at = datetime.strptime(updated_at, '%Y-%m-%dT%H:%M:%SZ')
         dates = relativedelta.relativedelta(today, created_at)
         months = dates.months + (dates.years*12)
-        created_since[repo] = months
         diff_updated_today = relativedelta.relativedelta(today, updated_at)
         diff_updated_today = diff_updated_today.months + (
             diff_updated_today.years*12)
-        updated_since[repo] = diff_updated_today
         scores_per_repo[repo] = {"created_since": months,
                                  "updated_since": diff_updated_today}
     logger.info("Getting contributor_count...")
@@ -155,8 +152,7 @@ def criticality_score(data_object) -> Dict[int, float]:
     filter_date = date.today() - relativedelta.relativedelta(years=1)
     filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     commits = data_object.query_repository(["commits"],
-                                            filters={"since": filter_date})
-    commit_frequency = {}
+                                           filters={"since": filter_date})
     for repo, data in commits.get("commits").items():
         repo_commit_dates = []
         for commit in data:
@@ -181,17 +177,15 @@ def criticality_score(data_object) -> Dict[int, float]:
             for commit_datetime in repo_commit_dates:
                 week_index = (commit_datetime.date() - earliest_date).days // 7
                 elements_per_week[week_index] += 1
-            average_per_week = sum(elements_per_week) / num_weeks
+            average_per_week = np.mean(elements_per_week)  # sum(elements_per_week) / num_weeks
 
         else:
             average_per_week = 0
             # commit_frequency[repo] = []
-        commit_frequency[repo] = average_per_week
         scores_per_repo[repo].update({"commit_frequency": average_per_week})
 
     # recent_releases_count
     logger.info("Getting recent_releases_count...")
-    recent_releases_count = {}
     for repo, data in base_data.get("release").items():
         release_list = []
         for release in data:
@@ -202,7 +196,6 @@ def criticality_score(data_object) -> Dict[int, float]:
             if dates.years == 0:
                 release_list.append(published_at)
         num_releases = len(release_list)
-        recent_releases_count[repo] = num_releases
         scores_per_repo[repo].update({"recent_releases_count": num_releases})
 
     # closed_issues_count & updated_issues_count
@@ -215,8 +208,6 @@ def criticality_score(data_object) -> Dict[int, float]:
             "since": filter_date_issues,
             "state": "all"
             })
-    closed_issues_count = {}
-    updated_issues_count = {}
     for repo, data in issues.get("issue").items():
         closed_issues = 0
         updated_issues = 0
@@ -235,10 +226,8 @@ def criticality_score(data_object) -> Dict[int, float]:
                 updated_diff = today - updated_date
                 if updated_diff.days <= 90:
                     updated_issues += 1
-        closed_issues_count[repo] = closed_issues
-        updated_issues_count[repo] = updated_issues
         scores_per_repo[repo].update({"closed_issues_count": closed_issues,
-                                 "updated_issues_count": updated_issues})
+                                      "updated_issues_count": updated_issues})
     # comment_frequency
     logger.info("Getting comment_frequency...")
     issue_comments = data_object.get_single_object(
@@ -246,9 +235,8 @@ def criticality_score(data_object) -> Dict[int, float]:
         filters={
             "since": filter_date_issues,
             "state": "all"
-            }
-            )
-    comment_frequency = {}
+            },
+        output_format="list")
     for repo, data in issue_comments.items():
         comment_count_list = []
         for issue in data:
@@ -259,7 +247,6 @@ def criticality_score(data_object) -> Dict[int, float]:
             avg_comment_count = round(np.mean(comment_count_list), 0)
         else:
             avg_comment_count = 0
-        comment_frequency[repo] = avg_comment_count
         scores_per_repo[repo].update({"comment_frequency": avg_comment_count})
     # dependents_count
     logger.info("Getting dependents_count...")
@@ -267,7 +254,6 @@ def criticality_score(data_object) -> Dict[int, float]:
     for repo, dep_count in dependents_count.items():
         scores_per_repo[repo].update({"dependents_count": dep_count})
 
-    print(scores_per_repo)
     criticality_score_per_repo = {}
     weights_json = open(
         "mdi_thesis\criticality_score_weights.json",
@@ -292,12 +278,12 @@ def criticality_score(data_object) -> Dict[int, float]:
             weight = weights.get(param_name).get("weight")
             res_1 = weight*res_fraction
             sum_alpha += res_1
-        res_2 = form_1*sum_alpha
+        res_2 = round((form_1*sum_alpha), 2)
         criticality_score_per_repo[repo] = res_2
     return criticality_score_per_repo
 
 
-def pull_requests(data_object) -> Dict[int,Dict[str,float]]:
+def pull_requests(data_object) -> Dict[int, Dict[str, float]]:
     """
     Contains information about:
     - Total number of pulls
@@ -339,9 +325,9 @@ def pull_requests(data_object) -> Dict[int,Dict[str,float]]:
             elif state == "closed":
                 state_closed += 1
         avg_date_diff = round(np.mean(date_diffs))
-        ratio_open = state_open / total_pulls
-        ratio_closed = state_closed / total_pulls
-        ratio_merged = pulls_merged / total_pulls
+        ratio_open = round((state_open / total_pulls), 2)
+        ratio_closed = round((state_closed / total_pulls), 2)
+        ratio_merged = round((pulls_merged / total_pulls), 2)
         pull_results[repo] = {"total_pulls": total_pulls,
                               "avg_pull_closed_days": avg_date_diff,
                               "ratio_open_total": ratio_open,
@@ -354,23 +340,29 @@ def pull_requests(data_object) -> Dict[int,Dict[str,float]]:
 def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
     """
     Calculates information about a projects velocity concerning
-    issues and their resolving time.
+    issues and their resolving time. Issues also include pulls,
+    bc. all pulls are issues, but not issues are pulls
     :param data_object: Request object, required to gather data
     of already selected repositories.
     :return: Values for each information including the
     total number of issues, the average issue resolving time in days,
-    and the ratio of open and closed issues to total issues.
+    the ratio of open and closed issues to total issues and
+    information about the number of pulls.
     """
     velocity_results = {}
-    issues = data_object.query_repository(
+    issues_pulls = data_object.query_repository(
         ["issue"],
         filters={"state": "all"})
-    for repo, data in issues.get("issue").items():
+    for repo, data in issues_pulls.get("issue").items():
         closed_issues = 0
         open_issues = 0
         total_issues = len(data)
         date_diffs = []
+        pull_issue_list = []
         for issue in data:
+            pull_request_id = issue.get("pull_request")
+            is_pull_request = bool(pull_request_id)
+            pull_issue_list.append(is_pull_request)
             state = issue.get("state")
             created_at = issue.get("created_at")
             created_at = datetime.strptime(created_at,
@@ -385,10 +377,16 @@ def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
                                                   '%Y-%m-%dT%H:%M:%SZ')
                 date_diff = closed_at - created_at
                 date_diffs.append(date_diff.days)
+        pull_count = pull_issue_list.count(True)
+        no_pull_count = pull_issue_list.count(False)
         avg_date_diff = round(np.mean(date_diffs))
-        ratio_open = open_issues / total_issues
-        ratio_closed = closed_issues / total_issues
+        ratio_open = round((open_issues / total_issues), 2)
+        ratio_closed = round((closed_issues / total_issues), 2)
+        ratio_pull_issue = round((pull_count / total_issues), 2)
         velocity_results[repo] = {"total_issues": total_issues,
+                                  "pull_count": pull_count,
+                                  "no_pull_count": no_pull_count,
+                                  "ratio_pull_issue": ratio_pull_issue,
                                   "avg_issue_resolving_days": avg_date_diff,
                                   "ratio_open_total": ratio_open,
                                   "ratio_closed_total": ratio_closed}
@@ -444,8 +442,126 @@ def github_community_health_percentage(data_object):
     return community_health_info
 
 
-def issues():
-    pass
+def issues(data_object) -> Dict[int, Dict[str, float]]:
+    """
+    Returns information about issues, excluding pulls.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Selected information about a repositories issue activities
+    """
+    issues_infos = {}
+    filter_date_issues = date.today() - relativedelta.relativedelta(days=90)
+    filter_date_issues = filter_date_issues.strftime('%Y-%m-%dT%H:%M:%SZ')
+    all_issues = data_object.query_repository(
+        ["issue"],
+        filters={"since": filter_date_issues,
+                 "state": "all"})
+
+    issue_comments = data_object.get_single_object(
+        feature="issue_comments",
+        filters={
+            "since": filter_date_issues,
+            "state": "all"
+            },
+        output_format="dict")
+    for repo, data in all_issues.get("issue").items():
+        closed_issues = 0
+        open_issues = 0
+        total_issues = 0
+        issue_close_times = []
+        issue_first_response_times = []
+        issue_creation_times = []
+        comment_count_list = []
+        for issue in data:
+            pull_request_id = issue.get("pull_request")
+            is_pull_request = bool(pull_request_id)
+            if not is_pull_request:
+                total_issues += 1
+                state = issue.get("state")
+                issue_created_at = issue.get("created_at")
+                issue_created_at = datetime.strptime(issue_created_at,
+                                                     '%Y-%m-%dT%H:%M:%SZ')
+                issue_creation_times.append(issue_created_at)
+                issue_number = issue.get("number")
+                try:
+                    total_comments = len(issue_comments.get(
+                        repo).get(issue_number))
+                    comment_count_list.append(total_comments)
+                    first_comment_date = issue_comments.get(
+                        repo).get(issue_number)[0].get("created_at")
+                    if first_comment_date:
+                        first_comment_date = datetime.strptime(
+                            first_comment_date,
+                            '%Y-%m-%dT%H:%M:%SZ')
+                        first_response_time = (first_comment_date -
+                                               issue_created_at)
+                        first_response_time = first_response_time.days
+                        issue_first_response_times.append(first_response_time)
+                    else:
+                        first_response_time = None
+                except KeyError:
+                    continue
+                except IndexError:
+                    continue
+                # Count states
+                if state == "open":
+                    open_issues += 1
+                if state == "closed":
+                    closed_issues += 1
+                    closed_at = issue.get("closed_at")
+                    if closed_at:
+                        closed_at = datetime.strptime(closed_at,
+                                                      '%Y-%m-%dT%H:%M:%SZ')
+                    date_diff = closed_at - issue_created_at
+                    issue_close_times.append(date_diff.days)
+
+        if issue_creation_times:
+            # Sort the datetime list
+            issue_creation_times.sort()
+            earliest_date = issue_creation_times[0].date()
+            latest_date = issue_creation_times[-1].date()
+            num_weeks = (latest_date - earliest_date).days // 7 + 1
+            # Count the number of elements per week
+            elements_per_week = [0] * num_weeks
+            for issue_datetime in issue_creation_times:
+                week_index = (issue_datetime.date() - earliest_date).days // 7
+                elements_per_week[week_index] += 1
+            average_per_week = round(np.mean(elements_per_week))  # sum(elements_per_week) / num_weeks
+        else:
+            average_per_week = 0
+
+        if issue_close_times:
+            avg_date_diff = round(np.mean(issue_close_times))
+        else:
+            avg_date_diff = None
+        if issue_first_response_times:
+            avg_first_response_time_days = round(np.mean(
+                issue_first_response_times))
+        else:
+            avg_first_response_time_days = None
+        if comment_count_list:
+            avg_issue_comments = round(np.mean(comment_count_list))
+        else:
+            avg_issue_comments = None
+        if total_issues:
+            ratio_open = round((open_issues / total_issues), 2)
+            ratio_closed = round((closed_issues / total_issues), 2)
+        else:
+            ratio_open = None
+            ratio_closed = None
+        issues_infos[repo] = {"total_issues": total_issues,
+                              "open_issues": open_issues,
+                              "closed_issues": closed_issues,
+                              "average_issue_created_per_week":
+                              average_per_week,
+                              "avg_issue_comments": avg_issue_comments,
+                              "avg_issue_resolving_days": avg_date_diff,
+                              "avg_first_response_time_days":
+                              avg_first_response_time_days,
+                              "ratio_open_total": ratio_open,
+                              "ratio_closed_total": ratio_closed}
+
+    return issues_infos
 
 
 def support_rate():
@@ -534,6 +650,7 @@ def main():
     """
     Main in progress
     """
+    start = timeit.timeit()
     repo_ids_path = "mdi_thesis/preselected_repos.txt"
 
     # selected_repos.select_repos(repo_list=repo_ids)
@@ -546,8 +663,10 @@ def main():
     # print(criticality_score(obj))
     # print(pull_requests(obj))
     # print(project_velocity(obj))
-    print(github_community_health_percentage(obj))
-
+    # print(github_community_health_percentage(obj))
+    print(issues(obj))
+    end = timeit.timeit()
+    print(end - start)
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))
     # print(selected_repos.query_repository(["commits"]))

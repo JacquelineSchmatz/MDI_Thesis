@@ -183,7 +183,8 @@ class Request:
 
     def get_single_object(self,
                           feature: str,
-                          filters: Dict[str, Any]
+                          filters: Dict[str, Any],
+                          output_format: str
                           ) -> Dict[int,
                                     List[Dict[int,
                                               List[Dict[str,
@@ -213,7 +214,10 @@ class Request:
         subfeature_list = self.query_features.get(
             feature).get("subfeature_list")
         for repository in objects_per_repo:
-            object_list = []
+            if output_format.lower() == "dict":
+                object_storage = {}
+            else:
+                object_storage = []
             url = request_url_1 + str(repository) + request_url_2
             objects = objects_per_repo.get(repository)
             object_counter = 0
@@ -233,8 +237,11 @@ class Request:
                     )
                 else:
                     comment_dict = {}
-                object_list.append(comment_dict)
-            single_object_dict[repository] = object_list
+                if output_format == "list":
+                    object_storage.append(comment_dict)
+                else:
+                    object_storage.update(comment_dict)
+            single_object_dict[repository] = object_storage
         return single_object_dict
 
     def get_repository_data(
