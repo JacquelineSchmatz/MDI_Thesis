@@ -26,7 +26,7 @@
     "issue":
         {
             "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/issues?state:all",
+            "request_url_2": "/issues",
             "request_url_3": "",
             "feature_list": [
                 "id",
@@ -63,6 +63,23 @@
             ]
         }
     ,
+    "pull_comments":
+    {
+        "request_url_1": "https://api.github.com/repositories/",
+        "request_url_2": "/pulls",
+        "request_url_3": "/comments",
+        "feature_list": [
+            "number"
+        ],
+        "feature_key": "number",
+        "subfeature_list": [
+            "id",
+            "created_at",
+            "in_reply_to_id",
+            "user"
+        ]
+    }
+,
     "release":
         {
             "request_url_1": "https://api.github.com/repositories/",

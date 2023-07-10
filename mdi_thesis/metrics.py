@@ -20,7 +20,7 @@ formatter = logging.Formatter(
     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.DEBUG)
 
 
 
@@ -564,8 +564,68 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
     return issues_infos
 
 
-def support_rate():
-    pass
+def support_rate(data_object) -> Dict[int, float]:
+    """
+    The support rate uses issues and pulls which received a response
+    in the last 6 months. Pulls are excluded from the issues
+    (bc. pulls are also included in queried issues data).
+    Pulls are filtered seperately, since the time filter
+    recognizes merges too,
+    yet this metric focuses only on comments as responses.
+    param data_object: Request object, required to gather data
+    of already selected repositories.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Support rate for each repository.
+    """
+    support_rate_results = {}
+    filter_date = date.today() - relativedelta.relativedelta(months=6)
+    filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # All issues required to get information about pulls in issue data
+    issues_pulls = data_object.query_repository(
+        ["issue"],
+        filters={"since": filter_date_str,
+                 "state": "all"})
+    issue_flag = {}
+
+    for repo, data in issues_pulls.get("issue").items():
+        for issue in data:
+            pull_request_id = issue.get("pull_request")
+            is_pull_request = bool(pull_request_id)
+            issue_number = issue.get("number")
+            issue_flag[issue_number] = is_pull_request
+
+    issue_comments = data_object.get_single_object(
+        feature="issue_comments",
+        filters={
+            "since": filter_date_str,
+            "state": "all"
+            },
+        output_format="list")
+
+    for repo, data in issue_comments.items():
+        issues_with_response = 0
+        total_issues = 0
+        total_pulls = 0
+        pulls_with_response = 0
+        for repo_issues in data:
+            for issue, comments in repo_issues.items():
+                # If issue is no pull
+                if not issue_flag.get(issue):
+                    print(issue)
+                    total_issues += 1
+                    if comments:
+                        issues_with_response += 1
+                else:
+                    total_pulls += 1
+                    if comments:
+                        pulls_with_response += 1
+        issue_support = issues_with_response / total_issues
+        pulls_support = pulls_with_response / total_pulls
+        support_rate_val = ((issue_support + pulls_support)/2)*100
+        support_rate_results[repo] = round(support_rate_val, 2)
+
+    return support_rate_results
 
 
 def upstream_code_dependency(data_object):
@@ -650,7 +710,7 @@ def main():
     """
     Main in progress
     """
-    start = timeit.timeit()
+
     repo_ids_path = "mdi_thesis/preselected_repos.txt"
 
     # selected_repos.select_repos(repo_list=repo_ids)
@@ -664,9 +724,8 @@ def main():
     # print(pull_requests(obj))
     # print(project_velocity(obj))
     # print(github_community_health_percentage(obj))
-    print(issues(obj))
-    end = timeit.timeit()
-    print(end - start)
+    print(support_rate(obj))
+
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))
     # print(selected_repos.query_repository(["commits"]))
