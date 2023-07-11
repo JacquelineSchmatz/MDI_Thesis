@@ -113,7 +113,7 @@
     "dependents":
         {
             "request_url_1": "https://github.com/",
-            "request_url_2": "/network/dependents?dependent_type=PACKAGE"
+            "request_url_2": "/network/dependents?dependent_type=REPOSITORY"
         }
     ,
     "dependencies":

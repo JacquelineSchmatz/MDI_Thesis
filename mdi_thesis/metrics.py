@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime
 # import time
 import numpy as np
-from typing import Dict  # , List, Any
+from typing import Dict, Union  # , List, Any
 from dateutil import relativedelta
 
 import mdi_thesis.base.base as base
@@ -250,9 +250,9 @@ def criticality_score(data_object) -> Dict[int, float]:
         scores_per_repo[repo].update({"comment_frequency": avg_comment_count})
     # dependents_count
     logger.info("Getting dependents_count...")
-    dependents_count = data_object.get_dependents()
-    for repo, dep_count in dependents_count.items():
-        scores_per_repo[repo].update({"dependents_count": dep_count})
+    dependents = data_object.get_dependents(dependents_details=False)
+    for repo, dep_count in dependents.items():
+        scores_per_repo[repo].update({"dependents_count": dep_count.get("total_dependents")})
 
     criticality_score_per_repo = {}
     weights_json = open(
@@ -393,7 +393,8 @@ def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
     return velocity_results
 
 
-def github_community_health_percentage(data_object):
+def github_community_health_percentage(
+        data_object) -> Dict[int, Dict[str, Union[float, bool]]]:
     """
     Retrieves information about the GitHub community health percentage metric.
     As the formula introduced by GitHub is questionable, potential relevant
@@ -628,17 +629,31 @@ def support_rate(data_object) -> Dict[int, float]:
     return support_rate_results
 
 
-def upstream_code_dependency(data_object):
-    # Dependencies via Dependency Graph
-    dependencies_1 = data_object.get_dependencies()
-    print(dependencies_1)
-    # print(base_data)
-    # Dependencies via Content files (requirements.txt or setup.py)
-    dependency_data = data_object.get_dependency_packages()
-    dependency_count = {}
-    for repo, dependencies in dependency_data.items():
-        dependency_count[repo] = len(dependencies)
-    print(dependency_count)
+def code_dependency(data_object) -> Dict[int, Dict]:
+    """
+    Dependencies retrieved from GitHub's Dependency Graph.
+    Upstream dependencies show on how many other projects
+    the passed repositories depend on -> GitHub Dependencies.
+    Downstream shoe how many other repositories depend on the
+    passed repositories -> GitHub Dependents.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: total upstream and downstream dependencies +
+    Visible downstream dependencies
+    """
+    dependencies = {}
+    upstream_dependencies = data_object.get_dependencies()
+    downstream_dependencies = data_object.get_dependents(
+        dependents_details=False)
+    for repo, data in downstream_dependencies.items():
+        total_upstream = len(upstream_dependencies.get(repo))
+        total_downstream = data.get("total_dependents")
+        visible_downstream = data.get("visible_dependents")
+        dependencies[repo] = {"total_upstream": total_upstream,
+                              "total_downstream": total_downstream,
+                              "visible_downstream": visible_downstream}
+
+    return dependencies
 
 # Dependency Graph vs. content files
 # {191113739: 0 - 191113739: 0
@@ -724,7 +739,10 @@ def main():
     # print(pull_requests(obj))
     # print(project_velocity(obj))
     # print(github_community_health_percentage(obj))
-    print(support_rate(obj))
+    # print(support_rate(obj))
+    print(code_dependency(obj))
+
+    # TODO: Update dependents of criticality score (distinct values, source not content)
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))

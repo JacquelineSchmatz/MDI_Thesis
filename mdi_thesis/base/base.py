@@ -344,16 +344,14 @@ class Request:
         logger.info("Done getting repository data.")
         return repository_dict
 
-    def get_dependents(self) -> Dict[int, int]:
+
+    def get_dependents(self, dependents_details: bool) -> Dict[int, int]:
         """
-        Get dependencies or dependents. Dependents can concern repositories
-        and packages. In this function only the packages are considered. 
-        Dependents can exist for multiple packages of a repository/project,
-        in this case all packages are included.
+        Get dependencies of a repository
         :param keyword: Keyword to select either dependents or dependencies
         :return: Repository ids and the number of dependents or dependencies
         """
-        dependents_count = {}
+        dependents_results = {}
         for repo, data in self.selected_repos_dict.items():
             repo_name = data.get("name")
             repo_owner_login = data.get("owner").get("login")
@@ -361,65 +359,94 @@ class Request:
             url_1 = self.query_features.get("dependents").get("request_url_1")
             url_2 = self.query_features.get("dependents").get("request_url_2")
             url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
-            count = 0
-            for i in range(0, 3):
-                try:
-                    response = self.session.get(url)
-                    soup = BeautifulSoup(response.content, "html.parser")
-                    dependents_box = soup.find("div", {"id": "dependents"})
-                    menu = dependents_box.select(
-                        "details",
-                        {"class": "select-menu.float-right.position-relative.details-reset.details-overlay"})
-                    if menu:
-                        options = menu[0].find_all(
-                            "div", {"class": "select-menu-list"})
-                        if options:
-                            for row in options[0].find_all("a", href=True):
-                                # text = row.find(
-                                #     "span",
-                                #     {"class": "select-menu-item-text"}
-                                #     ).text.strip()
-                                href = re.search(
-                                    "href=\"(.+?)\"\s",
-                                    str(row)).group(1)
-                                pattern = "dependents?"
-                                href_split = href.replace(pattern, f" {pattern} ").split(" ")
-                                href_url = url_1 + href_split[0] + href_split[1] + "dependent_type=PACKAGE&" + href_split[2]
-                                href_response = self.session.get(
+            nextExists = True
+            result_cnt = 500000
+            total_dependents = 0
+            visible_dependents = []
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            dependents_box = soup.find("div", {"id": "dependents"})
+            menu = dependents_box.select(
+                "details",
+                {"class": "select-menu.float-right.position-relative.details-reset.details-overlay"})
+            if menu:
+                options = menu[0].find_all(
+                    "div", {"class": "select-menu-list"})
+                if options:
+                    for row in options[0].find_all("a", href=True):
+                        href = re.search(
+                            "href=\"(.+?)\"\s",
+                            str(row)).group(1)
+                        pattern = "dependents?"
+                        href_split = href.replace(pattern, f" {pattern} ").split(" ")
+                        href_url = url_1 + href_split[0] + href_split[1] + "dependent_type=REPOSITORY&" + href_split[2]
+                        tmp_href_response = self.session.get(
                                     href_url)
-                                href_soup = BeautifulSoup(
-                                    href_response.content,
+                        tmp_href_soup = BeautifulSoup(
+                                    tmp_href_response.content,
                                     "html.parser")
-                                box = href_soup.find(
+                        box = tmp_href_soup.find(
                                     "a", {"class": "btn-link selected"}
                                     ).text
-                                count += int(
-                                    box.strip().split(" ")[0].replace(",", ""))
-                        else:
-                            box = soup.find(
-                                "a", {"class": "btn-link selected"}).text
-                            count = int(
-                                box.strip().split(" ")[0].replace(",", ""))
-                    else:
-                        box = soup.find(
-                            "a",
-                            {"class": "btn-link selected"}).text
-                        count = int(
+                        total_dependents += int(
                             box.strip().split(" ")[0].replace(",", ""))
-                    break
-                except requests.exceptions.ConnectionError:
-                    continue
-            dependents_count[repo] = count
-        return dependents_count
+                        if dependents_details:
+                            while nextExists and len(visible_dependents) < result_cnt:
+                                try:
+                                    href_response = self.session.get(
+                                        href_url)
+                                    href_soup = BeautifulSoup(
+                                        href_response.content,
+                                        "html.parser")
+                                    dependents_box = href_soup.find("div", {"id": "dependents"})
+                                    if not dependents_box:
+                                        break
+                                    dependents = dependents_box.find("div", {"class": "Box"})
+                                    dependents_elements = dependents.find_all("div", {"class": "Box-row d-flex flex-items-center", "data-test-id": "dg-repo-pkg-dependent"})
+                                    if dependents_elements:
+                                        for element in dependents_elements:
+                                            # print(element)
+                                            cell = element.find("span", {"class": "f5 color-fg-muted"})
+                                            # print(test)
+                                            try:
+                                                user = cell.find("a", {"data-hovercard-type": "user"}).text
+                                            except AttributeError:
+                                                user = cell.find("a", {"data-hovercard-type": "organization"}).text
+                                            repository = element.find("a", {"class": "text-bold", "data-hovercard-type": "repository"}).text
+                                            visible_dependents.append([user, repository])
+                                    else:
+                                        break
+                                    try:
+                                        selector = dependents_box.find(
+                                            "div", {"class": "BtnGroup"})# .find_all('a')
+                                        for u in selector:
+                                            if u.text == "Next":
+                                                nextExists = True
+                                                href_url = u["href"]
+                                            else:
+                                                nextExists = False
+                                            
+                                    except Exception as href_info:
+                                        logger.info(href_info)
+                                        time.sleep(2)
+                                        nextExists = True
+                                        break
+                                except requests.exceptions.ConnectionError:
+                                    continue
+            
+            dependents_results[repo] = {"total_dependents": total_dependents,
+                                        "visible_dependents": visible_dependents}
+        return dependents_results
+
 
     def get_dependencies(self) -> Dict[int, int]:
         """
-        Get dependencies of a repository
-        :param keyword: Keyword to select either dependents or dependencies
-        :return: Repository ids and the number of dependents or dependencies
-        TODO: Change packages to repositories and use distinct dependencies
+        NOTE: Dependency graph from GitHub is still in progress!
+        Changes in near future can cause errors!
+        Get dependencies of a repository.
+        :return: Repository ids and the number of dependencies
         """
-        dependencies_count = {}
+        dependency_results = {}
         for repo, data in self.selected_repos_dict.items():
             repo_name = data.get("name")
             repo_owner_login = data.get("owner").get("login")
@@ -429,15 +456,21 @@ class Request:
             url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
             nextExists = True
             result_cnt = 500000
-            results = []
+            results = set()
             while nextExists and len(results) < result_cnt:
                 response = self.session.get(url)
                 soup = BeautifulSoup(response.content, "html.parser")
                 dependencies_box = soup.find("div", {"id": "dependencies"})
                 dependencies = dependencies_box.find("div", {"class": "Box", "data-view-component": "true"})
                 if dependencies:
-                    for t in dependencies.find_all("li", {"class": "Box-row", "data-view-component": "true"}):
-                        results.append(t)
+                    print(repo)
+                    for element in dependencies.find_all("li", {"class": "Box-row", "data-view-component": "true"}):
+                        # print(element)
+                        try:
+                            text = element.find("a", {"class": "h4 Link--primary no-underline"}).text.strip()
+                        except AttributeError:
+                            text = element.find("div", {"class": "d-flex flex-items-baseline"}).text.strip()
+                        results.add(text)
                 else:
                     break
                 nextExists = False
@@ -451,10 +484,10 @@ class Request:
                     logger.info(href_info)
                     time.sleep(2)
                     nextExists = True
-            dependencies_count[repo] = len(results)
+            dependency_results[repo] = sorted(results)  # len(results)
             # for element in results:
             #    print(element["name"] + ", " + str(element["stars"]))
-        return dependencies_count
+        return dependency_results
 
     def get_context_information(self, main_feature: str,
                                 sub_feature: str, filters: Dict[str, Any]
