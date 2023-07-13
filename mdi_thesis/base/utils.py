@@ -239,3 +239,4 @@ def get_organizations(contributors_data, data_object):
                     distinct_organizations.add(org_name)
         repo_organizations[repo] = len(distinct_organizations)
     return repo_organizations
+

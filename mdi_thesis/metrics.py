@@ -4,10 +4,11 @@ Module for metric calculations.
 import timeit
 import json
 import logging
+import collections
 from datetime import date, datetime
 # import time
-import numpy as np
 from typing import Dict, Tuple, Union  # , List, Any
+import numpy as np
 from dateutil import relativedelta
 
 import mdi_thesis.base.base as base
@@ -749,8 +750,42 @@ def security_advisories(data_object) -> \
     return advisory_scores, advisory_infos
 
 
-def bus_factor():
-    pass
+def bus_factor(data_object) -> Dict[int, int]:
+    """
+    TODO: May add pareto principle due to similar formula.
+    The bus factor represents the number of contributors which can be "lost"
+    before a project stalls.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Bus factor for each repository
+    """
+    filter_date = date.today() - relativedelta.relativedelta(year=1)
+    filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    commits = data_object.query_repository(["commits"],
+                                           filters={"since": filter_date})
+    repo_bus_factor = {}
+    for repo, commits in commits.get("commits").items():
+        total_committer = []
+        no_committer = 0
+        for commit in commits:
+            try:
+                committer_id = commit.get("committer").get("id")
+            except AttributeError:
+                committer_id = None
+                no_committer += 1
+            total_committer.append(committer_id)
+        committer_counter = collections.Counter(total_committer).values()
+        commits_sorted = sorted(committer_counter, reverse=True)
+        t_1 = sum(committer_counter) * 0.5
+        t_2 = 0
+        bus_factor_score = 0
+        for contributions in commits_sorted:
+            bus_factor_score += 1
+            t_2 += contributions
+            if t_2 >= t_1:
+                break
+        repo_bus_factor[repo] = bus_factor_score
+    return repo_bus_factor
 
 
 def pareto_principle():
@@ -801,7 +836,9 @@ def main():
     # print(github_community_health_percentage(obj))
     # print(support_rate(obj))
     # print(code_dependency(obj))
-    print(branch_patch_ratio(obj))
+    # print(security_advisories(obj))
+    print(bus_factor(obj))
+    
     # TODO: Update dependents of criticality score (distinct values, source not content)
 
     # print(selected_repos.get_single_object(feature="commits"))
