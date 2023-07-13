@@ -344,7 +344,6 @@ class Request:
         logger.info("Done getting repository data.")
         return repository_dict
 
-
     def get_dependents(self, dependents_details: bool) -> Dict[int, int]:
         """
         Get dependencies of a repository

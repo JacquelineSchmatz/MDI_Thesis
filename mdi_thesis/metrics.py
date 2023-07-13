@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime
 # import time
 import numpy as np
-from typing import Dict, Union  # , List, Any
+from typing import Dict, Tuple, Union  # , List, Any
 from dateutil import relativedelta
 
 import mdi_thesis.base.base as base
@@ -655,38 +655,98 @@ def code_dependency(data_object) -> Dict[int, Dict]:
 
     return dependencies
 
-# Dependency Graph vs. content files
-# {191113739: 0 - 191113739: 0
-# 307260205: 24 - 307260205: 6
-# 101138315: 5 - 101138315: 5
-# 537603333: 12 - 537603333: 6
-# 34757182: 2 - 34757182: 2
-# 84533158: 14 - 84533158: 0
-# 573819845: 22 - 573819845: 6
-# 222751131: 6 - 222751131: 0
-# 45723377: 0 - 45723377: 0
-# 2909429: 583 - 2909429: 6
-# 74073233: 23 - 74073233: 0
-# 80990461: 9 - 80990461: 9
-# 138331573: 1 - 138331573: 0
-# 41654081: 0 - 41654081: 0
-# 8162715: 1139 - 8162715: 162
-# 152166877: 11 - 152166877: 6
-# 59720190: 35 - 59720190: 11
-# 253601257: 13 - 253601257: 7
-# 221723816: 112 - 221723816: 0
-# 143328315: 308 - 143328315: 0
-# 7053637: 39 - 7053637: 4
-# 10332822: 3 - 10332822: 0
-# 65593050: 3 - 65593050: 3
-# 36895421: 18 - 36895421: 8
-# 143460965: 944 - 143460965: 0
-# 189840: 28 - 189840: 3
-# 617798408: 189 - 617798408: 0
 
+# replaces branch_patch_ratio
+def security_advisories(data_object) -> \
+    Tuple[Dict[int, Dict[str, Union[int, float, None]]],
+          Dict[int, Dict[str, Union[int, float, str, bool]]]]:
+    """
+    Uses GitHub's security advisories to retrieve information and calculate
+    basic scores.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Two dictionaries, containing scores and raw information
+    """
+    repo_advisories = data_object.query_repository(
+        ["advisories"],
+        filters={})
+    advisory_infos = {}
+    advisory_scores = {}
+    for repo, advisory in repo_advisories.get("advisories").items():
+        advisories_available = bool(advisory)
+        advisories = {}
+        vuln_patched = 0
+        vuln_not_patched = 0
+        cvss_scores = []
+        closed_adv = 0
+        severities = []
+        for adv in advisory:
+            # On GitHub, withdrawn advisories can only be removed
+            # by contacting the support if the advisory was made in error.
+            withdrawn_at = bool(adv.get("withdrawn_at"))
+            if withdrawn_at:
+                continue
+            adv_id = adv.get("ghsa_id")
+            cve_id = adv.get("cve_id")
+            severity = adv.get("severity")  # low, medium, high, critical
+            severities.append(severity)
+            state = adv.get("state")  # triage, draf, published or closed
+            if state == "closed":
+                closed_adv += 1
+            published_at = adv.get("published_at")
+            cvss_score = adv.get("cvss").get("score")
+            if not cvss_score:
+                if cve_id:
+                    # if no score was provided but an id is available,
+                    # NVD is checked.
+                    cvss_score = external.get_nvds(cve_id)
+            if cvss_score:
+                cvss_scores.append(cvss_score)
+            cwes = adv.get("cwes")
+            vulnerabilities = adv.get("vulnerabilities")
+            if vulnerabilities:
+                for vul_dict in vulnerabilities:
+                    # package_name = vul_dict.get("package").get("name")
+                    package_patched = bool(vul_dict.get("patched_versions"))
+                    if package_patched:
+                        vuln_patched += 1
+                    else:
+                        vuln_not_patched += 1
 
-def branch_patch_ratio():
-    pass
+            advisories[adv_id] = {"cve_id": cve_id,
+                                  "severity": severity,
+                                  "state": state,
+                                  "published_at": published_at,
+                                  "cvss_score": cvss_score,
+                                  "cwes": cwes}
+        severity_high_count = severities.count("high")
+        severity_critical_count = severities.count("critical")
+        severity_high_critical_total = (severity_high_count +
+                                        severity_critical_count)
+        if severities:
+            ratio_severity_high_crit = (severity_high_critical_total /
+                                        len(severities))
+        else:
+            ratio_severity_high_crit = None
+        if cvss_scores:
+            mean_cvs_score = np.mean(cvss_scores)
+        else:
+            mean_cvs_score = None
+        total_vuln = vuln_patched + vuln_not_patched
+        if total_vuln > 0:
+            patch_ratio = vuln_patched / total_vuln
+        else:
+            patch_ratio = None
+        scores = {"advisories_available": advisories_available,
+                  "patch_ratio": patch_ratio,
+                  "closed_advisories": closed_adv,
+                  "mean_cvss_score": mean_cvs_score,
+                  "ratio_severity_high_crit":
+                  ratio_severity_high_crit}
+
+        advisory_scores[repo] = scores
+        advisory_infos[repo] = advisories
+    return advisory_scores, advisory_infos
 
 
 def bus_factor():
@@ -740,8 +800,8 @@ def main():
     # print(project_velocity(obj))
     # print(github_community_health_percentage(obj))
     # print(support_rate(obj))
-    print(code_dependency(obj))
-
+    # print(code_dependency(obj))
+    print(branch_patch_ratio(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
 
     # print(selected_repos.get_single_object(feature="commits"))
