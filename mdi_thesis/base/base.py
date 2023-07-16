@@ -501,6 +501,8 @@ class Request:
             sub_feature).get("request_url_1")
         request_url_2 = self.query_features.get(
             sub_feature).get("request_url_2")
+        request_url_3 = self.query_features.get(
+            sub_feature).get("request_url_3")
         feature_list = self.query_features.get(
             sub_feature).get("feature_list")
         feature_key = self.query_features.get(
@@ -512,6 +514,9 @@ class Request:
                 element_dict = {}
                 key = element.get(feature_key)
                 element_url = request_url_1 + str(key) + request_url_2
+                if sub_feature == "trees":
+                    element_url = request_url_1 + str(repository) + \
+                        request_url_2 + str(key) + request_url_3
                 result = self.session.get(
                             element_url, headers=self.headers, timeout=100)
                 sub_data = result.json()
@@ -520,6 +525,12 @@ class Request:
                         element_dict[feature] = sub_data.get(feature)
                     else:
                         element_dict[feature] = sub_data
+                if sub_feature == "trees":
+                    try:
+                        committer_id = element.get("committer").get("id")
+                    except AttributeError:
+                        pass
+                    element_dict.update({"committer_id": committer_id})
                 data_list.append(element_dict)
             return_data[repository] = data_list
         return return_data

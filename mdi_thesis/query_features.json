@@ -220,6 +220,24 @@
             ]
         }
     ,
+    "trees":
+    {
+        "request_url_1": "https://api.github.com/repositories/",
+        "request_url_2": "/git/trees/",
+        "request_url_3": "?recursive=1",
+        "feature_list": [
+            "sha",
+            "url",
+            "tree"
+        ],
+        "feature_key": "sha",
+        "subfeature_list": [
+            "comment_count",
+            "status",
+            "stats"
+        ]
+    }
+,
     "dependency_diff":
         {
             "request_url_1": "https://api.github.com/repositories/",

@@ -5,6 +5,7 @@ import timeit
 import json
 import logging
 import collections
+import math
 from datetime import date, datetime
 # import time
 from typing import Dict, Tuple, Union  # , List, Any
@@ -750,20 +751,58 @@ def security_advisories(data_object) -> \
     return advisory_scores, advisory_infos
 
 
-def bus_factor(data_object) -> Dict[int, int]:
+# def bus_factor(data_object) -> Dict[int, int]:
+#     """
+#     TODO: May add pareto principle due to similar formula.
+#     Note: Filtered by time factor.
+#     The bus factor represents the number of contributors which can be "lost"
+#     before a project stalls.
+#     :param data_object: Request object, required to gather data
+#     of already selected repositories.
+#     :return: Bus factor for each repository
+#     """
+#     filter_date = date.today() - relativedelta.relativedelta(year=1)
+#     filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+#     commits = data_object.query_repository(["commits"],
+#                                            filters={"since": filter_date})
+#     repo_bus_factor = {}
+#     for repo, commits in commits.get("commits").items():
+#         total_committer = []
+#         no_committer = 0
+#         for commit in commits:
+#             try:
+#                 committer_id = commit.get("committer").get("id")
+#             except AttributeError:
+#                 committer_id = None
+#                 no_committer += 1
+#             total_committer.append(committer_id)
+#         committer_counter = collections.Counter(total_committer).values()
+#         commits_sorted = sorted(committer_counter, reverse=True)
+#         t_1 = sum(committer_counter) * 0.5
+#         t_2 = 0
+#         bus_factor_score = 0
+#         for contributions in commits_sorted:
+#             bus_factor_score += 1
+#             t_2 += contributions
+#             if t_2 >= t_1:
+#                 break
+#         repo_bus_factor[repo] = bus_factor_score
+#     return repo_bus_factor
+
+
+def contributions_distributions(data_object):
     """
-    TODO: May add pareto principle due to similar formula.
-    The bus factor represents the number of contributors which can be "lost"
-    before a project stalls.
+    Includes Bus Factor and Scores representing the Pareto Principle
     :param data_object: Request object, required to gather data
     of already selected repositories.
-    :return: Bus factor for each repository
+    :return: Information about the distribution of the contributions per contributors
+    by calculating the bus factor and the pareto principle for each repository..
     """
     filter_date = date.today() - relativedelta.relativedelta(year=1)
     filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     commits = data_object.query_repository(["commits"],
                                            filters={"since": filter_date})
-    repo_bus_factor = {}
+    repo_pareto = {}
     for repo, commits in commits.get("commits").items():
         total_committer = []
         no_committer = 0
@@ -779,25 +818,119 @@ def bus_factor(data_object) -> Dict[int, int]:
         t_1 = sum(committer_counter) * 0.5
         t_2 = 0
         bus_factor_score = 0
-        for contributions in commits_sorted:
+
+        total_contributions = sum(commits_sorted)
+        total_contributer = len(commits_sorted)
+        # Round up since no half contributors exist (hopefully)
+        twenty_percent = math.ceil(total_contributer * 0.2)
+        eighty_percent = total_contributions * 0.8
+        running_contributions = 0
+        pareto_ist = 0
+        for contrib, contributions in enumerate(commits_sorted, start=1):
+            running_contributions += contributions
             bus_factor_score += 1
             t_2 += contributions
             if t_2 >= t_1:
                 break
-        repo_bus_factor[repo] = bus_factor_score
-    return repo_bus_factor
+            if contrib == twenty_percent:
+                # twenty_per_contributions = contrib
+                pareto_ist = running_contributions
+                break
+        prot_diff = np.round(np.absolute((eighty_percent - pareto_ist)) / (
+            (eighty_percent + pareto_ist) / 2), 2)
+        pareto_results = {"bus_factor_score": bus_factor_score,
+                          "twenty_percent_contributor":
+                          twenty_percent,
+                          "eighty_percent_contributions_soll":
+                          eighty_percent,
+                          "eighty_percent_contributions_ist":
+                          pareto_ist,
+                          "diff_pareto_soll_ist":
+                          prot_diff}
+        repo_pareto[repo] = pareto_results
+    return repo_pareto
 
 
-def pareto_principle():
-    pass
+def contributors_per_file(data_object) -> Dict[int, float]:
+    """
+    Iterates through commits and gets the committer and the
+    trees (subdirectories) which lead to files recursevly,
+    until the edited file is found to get all committers
+    for each file.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Average number of contributors per each file
+    """
+    filter_date = date.today() - relativedelta.relativedelta(months=1)
+    filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    commit_trees = data_object.get_context_information(
+        main_feature="commits",
+        sub_feature="trees",
+        filters={"since": filter_date_str})
+    results_dict = {}
+    for repo, data in commit_trees.items():
+        file_committer = {}
+        for subdict in data:
+            committer = subdict.get("committer_id")
+            tree = subdict.get("tree")
+            if tree:
+                for element in tree:
+                    element_type = element.get("type")
+                    if element_type == "blob":  # blob refers to files only
+                        path = element.get("path")
+                        if path not in file_committer:
+                            file_committer[path] = {committer}
+                        else:
+                            file_committer[path].add(committer)
+        if file_committer:
+            num_contributors_per_files = []
+            for committer_ids in file_committer.values():
+                num_contributors_per_files.append(len(committer_ids))
+                # file_committer[file] = len(committer_ids)
+            avg_num_contributors_per_file = np.ceil(
+                np.mean(num_contributors_per_files))
+        else:
+            avg_num_contributors_per_file = None
+        results_dict[repo] = avg_num_contributors_per_file
+
+    return results_dict
 
 
-def contributors_per_file():
-    pass
-
-
-def number_of_support_contributors():
-    pass
+def number_of_support_contributors(data_object) -> Dict[int, int]:
+    """
+    Calculates the number of active contributors per repository
+    in the last 6 months and assigns a score to each.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Score for the number of active contributors
+    """
+    filter_date = date.today() - relativedelta.relativedelta(months=6)
+    filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    commits = data_object.query_repository(["commits"],
+                                           filters={"since": filter_date})
+    support_contributors = {}
+    for repo, commits in commits.get("commits").items():
+        total_committer = set()
+        for commit in commits:
+            try:
+                committer_id = commit.get("committer").get("id")
+                total_committer.add(committer_id)
+            except AttributeError:
+                pass
+        total_committer = len(total_committer)
+        score = 0
+        if total_committer < 5:
+            score = 1
+        elif total_committer >=5 and total_committer <= 10:
+            score = 2
+        elif total_committer > 10 and total_committer <= 20:
+            score = 3
+        elif total_committer > 20 and total_committer <= 50:
+            score = 4
+        elif total_committer > 50:
+            score = 5
+        support_contributors[repo] = score
+    return support_contributors
 
 
 def elephant_factor():
@@ -837,8 +970,10 @@ def main():
     # print(support_rate(obj))
     # print(code_dependency(obj))
     # print(security_advisories(obj))
-    print(bus_factor(obj))
-    
+    # print(bus_factor(obj))
+    # print(contributions_distributions(obj))
+    print(contributors_per_file(obj))
+    # print(number_of_support_contributors(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
 
     # print(selected_repos.get_single_object(feature="commits"))
