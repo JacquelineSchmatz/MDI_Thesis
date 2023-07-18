@@ -6,6 +6,7 @@ import json
 import logging
 import collections
 import math
+import csv
 from datetime import date, datetime
 # import time
 import regex as re
@@ -17,19 +18,18 @@ import mdi_thesis.base.base as base
 import mdi_thesis.base.utils as utils
 import mdi_thesis.external as external
 
-logger = logging.getLogger()
-handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-
-
+# logger = logging.getLogger(__name__)
+# handler = logging.StreamHandler()
+# formatter = logging.Formatter(
+#     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
+# handler.setFormatter(formatter)
+# logger.addHandler(handler)
+# logger.setLevel(logging.DEBUG)
 
 
 def select_data(repo_nr: int = 0,
                 path: str = "",
+                query_parameters: str = "",
                 order: str = "desc"
                 ):
     """
@@ -45,6 +45,7 @@ def select_data(repo_nr: int = 0,
         # Statement for selecting number of queried repositories
         selected_repos.select_repos(
             repo_nr=repo_nr,
+            query_parameters=query_parameters,
             order=order,
             repo_list=[])
     return selected_repos
@@ -937,13 +938,14 @@ def main():
     """
     Main in progress
     """
-
-    repo_ids_path = "mdi_thesis/preselected_repos.txt"
+    logger = base.get_logger(__name__)
+    logger.setLevel(logging.DEBUG)
+    # repo_ids_path = "mdi_thesis/preselected_repos.txt"
 
     # selected_repos.select_repos(repo_list=repo_ids)
-    obj = select_data(path=repo_ids_path)
+    # obj = select_data(path=repo_ids_path)
     # obj = select_data(repo_nr=1, order="desc")
-    print(obj)
+    # print(obj)
     # print(maturity_level(obj))
     # print(osi_approved_license(obj))
     # print(obj.selected_repos_dict)
@@ -955,7 +957,7 @@ def main():
     # print(code_dependency(obj))
     # print(security_advisories(obj))
     # print(bus_factor(obj))
-    print(contributions_distributions(obj))
+    # print(contributions_distributions(obj))
     # print(contributors_per_file(obj))
     # print(number_of_support_contributors(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
@@ -967,7 +969,87 @@ def main():
     # .get("community_health")  # .get(191113739))
     # print(len(selected_repos.query_repository(["contributors"])))
     # .get("community_health")  # .get(191113739)))
+    header = ["language", "repo_id", "repo_name", "repo_owner_login", "size", "stargazers_count", "watchers_count"]
+    with open('preselected_repos.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        py_query = "language:python&sort=stars&order=desc&is:public&template:false"
+        py_obj = select_data(query_parameters=py_query, repo_nr=1000)
+        python_repos = py_obj.query_repository(["repository"], filters={})
+        for repo, data in python_repos.get("repository").items():
+            try:
+                language = data.get("language")
+                name = data.get("name")
+                owner = data.get("owner").get("login")
+                size = data.get("size")
+                stargazers_count = data.get("stargazers_count")
+                watchers_count = data.get("watchers_count")
+                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
+                writer.writerow(row)
+            except AttributeError:
+                pass
+        java_query = "language:java&sort=stars&order=desc&is:public&template:false"
+        java_obj = select_data(query_parameters=java_query, repo_nr=1000)
+        java_repos = java_obj.query_repository(["repository"], filters={})
+        for repo, data in java_repos.get("repository").items():
+            try:
+                language = data.get("language")
+                name = data.get("name")
+                owner = data.get("owner").get("login")
+                size = data.get("size")
+                stargazers_count = data.get("stargazers_count")
+                watchers_count = data.get("watchers_count")
+                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
+                writer.writerow(row)
+            except AttributeError:
+                pass
+        php_query = "language:php&sort=stars&order=desc&is:public&template:false"
+        php_obj = select_data(query_parameters=php_query, repo_nr=1000)
+        php_repos = php_obj.query_repository(["repository"], filters={})
 
+        for repo, data in php_repos.get("repository").items():
+            try:
+                language = data.get("language")
+                name = data.get("name")
+                owner = data.get("owner").get("login")
+                size = data.get("size")
+                stargazers_count = data.get("stargazers_count")
+                watchers_count = data.get("watchers_count")
+                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
+                writer.writerow(row)
+            except AttributeError:
+                pass
 
+        c_query = "language:c&sort=stars&order=desc&is:public&template:false"
+        c_obj = select_data(query_parameters=c_query, repo_nr=1000)
+        c_repos = c_obj.query_repository(["repository"], filters={})
+        for repo, data in c_repos.get("repository").items():
+            try:
+                language = data.get("language")
+                name = data.get("name")
+                owner = data.get("owner").get("login")
+                size = data.get("size")
+                stargazers_count = data.get("stargazers_count")
+                watchers_count = data.get("watchers_count")
+                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
+                writer.writerow(row)
+            except AttributeError:
+                pass
+        cpp_query = "language:cpp&sort=stars&order=desc&is:public&template:false"
+        cpp_obj = select_data(query_parameters=cpp_query, repo_nr=1000)
+        cpp_repos = cpp_obj.query_repository(["repository"], filters={})
+        for repo, data in cpp_repos.get("repository").items():
+            try:
+                language = data.get("language")
+                name = data.get("name")
+                owner = data.get("owner").get("login")
+                size = data.get("size")
+                stargazers_count = data.get("stargazers_count")
+                watchers_count = data.get("watchers_count")
+                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
+                writer.writerow(row)
+            except AttributeError:
+                pass
+ 
 if __name__ == "__main__":
     main()

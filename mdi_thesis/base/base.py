@@ -10,25 +10,34 @@ and then choose `flask` as template.
 # from datetime import date
 import json
 import time
-from bs4 import BeautifulSoup
 from typing import Dict, List, Any
+import base64
+import re
+import logging
+from bs4 import BeautifulSoup
 import requests
 import mdi_thesis.constants as constants
 import mdi_thesis.base.utils as utils
-import logging
-import os
-import base64
-import re
+# import os
 
 
-logger = logging.getLogger()
-handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.ERROR)
-
+# logger = logging.getLogger(__name__)
+# handler = logging.StreamHandler()
+# formatter = logging.Formatter(
+#     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
+# handler.setFormatter(formatter)
+# logger.addHandler(handler)
+# logger.setLevel(logging.ERROR)
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        # Prevent logging from propagating to the root logger
+        logger.propagate = 0
+        console = logging.StreamHandler()
+        logger.addHandler(console)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(message)s')
+        console.setFormatter(formatter)
+    return logger
 
 class Request:
     """
@@ -47,12 +56,14 @@ class Request:
         query_features_file = open(
             "mdi_thesis/query_features.json", encoding="utf-8")
         self.query_features = json.load(query_features_file)
-        sub_results = {}
+        self.logger = get_logger(__name__)
+        self.logger.setLevel(logging.DEBUG)
 
     def select_repos(
         self,
         repo_nr: int,
         repo_list: List[int],
+        query_parameters: str = "",
         language: str = "python",
         sort: str = "stars",
         order: str = "desc",
@@ -82,31 +93,43 @@ class Request:
                 selected_repos.append(results)
 
         else:
+            # search_url = (
+            #     "https://api.github.com/search/repositories?q=language:"
+            #     + language
+            #     + "&sort="
+            #     + sort
+            #     + "&order="
+            #     + order
+            #     + "&help-wanted-issues="
+            #     + help_wanted_issues
+            #     + "&access_token="
+            #     + self.token
+            #     + "?per_page="  # "?simple=yes&per_page="
+            #     + str(self.results_per_page)
+            #     + "&page=1"
+            # )
             search_url = (
-                "https://api.github.com/search/repositories?q=language:"
-                + language
-                + "&sort="
-                + sort
-                + "&order="
-                + order
-                + "&help-wanted-issues="
-                + help_wanted_issues
+                "https://api.github.com/search/repositories?q="
+                + query_parameters
                 + "&access_token="
                 + self.token
                 + "?per_page="  # "?simple=yes&per_page="
                 + str(self.results_per_page)
                 + "&page=1"
             )
-            repo_nr_queried = 0
-            response = self.session.get(
-                search_url, headers=self.headers, timeout=100)
-            results = response.json()
-            try:
-                results_items = results["items"]
-            except Exception as err:
-                logger.error("Unexpected %s, %s", err, type(err))
-                logger.debug("Error raised at data result: %s", results)
-                raise
+
+            for run in range(0, 3):
+                try:
+                    repo_nr_queried = 0
+                    response = self.session.get(
+                        search_url, headers=self.headers, timeout=100)
+                    results = response.json()
+                    results_items = results["items"]
+                    break
+                except Exception as err:
+                    self.logger.error("Unexpected %s, %s", err, type(err))
+                    # self.logger.debug("Error raised at data result: %s", results)
+                    raise
             
             if "last" in response.links:
                 # nr_of_pages = response.links.get(
@@ -122,7 +145,7 @@ class Request:
                             )
                             res = self.session.get(
                                 url_repo, headers=self.headers, timeout=100)
-                            logger.info("Query page %s of %s",
+                            self.logger.info("Query page %s of %s",
                                         page, nr_of_pages)
                             logging.info("Extending results...")
                             try:
@@ -130,7 +153,7 @@ class Request:
                                     next_res = res.json()["items"]
                                     results_items.extend(next_res)
                             except Exception as error:
-                                logger.error(
+                                self.logger.error(
                                     "Could not extend: %s...\nError: %s",
                                     res.json(), error)
 
@@ -151,7 +174,7 @@ class Request:
         :param queried_features: List with gathered features
         :return:
         """
-        logger.info("Getting request information for feature(s): %s",
+        self.logger.info("Getting request information for feature(s): %s",
                     queried_features)
         feature_list = []  # type: list[str]
         query_dict = {}  # type: dict[str, list]
@@ -202,13 +225,13 @@ class Request:
             feature).get("request_url_2")
         request_url_3 = self.query_features.get(
             feature).get("request_url_3")
-        logger.info("Starting query for repository request...")
+        self.logger.info("Starting query for repository request...")
         objects_per_repo = []  # objects_per_repo type: List[Dict[str, Any]]
         objects_per_repo = self.query_repository(
             queried_features=[feature], filters=filters).get(
             feature
         )  # Object e.g. issue or commit
-        logger.info("Finished query for repository request.")
+        self.logger.info("Finished query for repository request.")
         object_key = self.query_features.get(feature).get("feature_key")
         single_object_dict = {}
         subfeature_list = self.query_features.get(
@@ -223,7 +246,7 @@ class Request:
             object_counter = 0
             for obj in objects:
                 object_counter += 1
-                logger.info(
+                self.logger.info(
                     "Get object Nr. %s of %s", object_counter, len(objects))
                 object_id = obj.get(object_key)
                 if object_id:
@@ -267,7 +290,7 @@ class Request:
         if filters:
             for key, value in filters.items():
                 filter_str = filter_str + key + "=" + value + "&"
-        logger.info(
+        self.logger.info(
             "Getting repository data of %s repositories",
             len(self.selected_repos_dict)
         )
@@ -277,12 +300,12 @@ class Request:
             repositories = self.selected_repos_dict
 
         for repo_id in repositories:
-            logger.info("Getting repository %s", repo_id)
+            self.logger.info("Getting repository %s", repo_id)
             if request_url_2:
                 url_repo = str(request_url_1 + str(repo_id) + request_url_2)
             else:
                 url_repo = str(request_url_1 + str(repo_id))
-            logger.info("Getting page 1")
+            self.logger.info("Getting page 1")
             start_url = (str(url_repo) +
                          "?simple=yes&" +
                          str(filter_str) +
@@ -300,9 +323,9 @@ class Request:
                 )
 
                 if int(nr_of_pages) > 1:
-                    logger.info("Getting responses for all pages...")
+                    self.logger.info("Getting responses for all pages...")
                     for page in range(2, int(nr_of_pages) + 1):
-                        logger.info("Query page %s of %s", page, nr_of_pages)
+                        self.logger.info("Query page %s of %s", page, nr_of_pages)
                         url = (str(url_repo) +
                                "?simple=yes&" +
                                str(filter_str) +
@@ -316,11 +339,11 @@ class Request:
                         try:
                             results.extend(res.json())
                         except Exception as error:
-                            logger.info(
+                            self.logger.info(
                                 "Could not extend data: %s:%s",
                                 res.json(), error)
 
-            logger.info("Finished getting responses for all queries.")
+            self.logger.info("Finished getting responses for all queries.")
             element_list = []  # element_list type: List[Dict[str, Any]]
             if isinstance(results, list):
                 for element in results:
@@ -329,9 +352,9 @@ class Request:
                         try:
                             element_dict[feature] = element.get(feature)
                         except AttributeError as att_error:
-                            logger.error("Encountered Attribute Error %s \
-                                         /n At feature %s /n At element %s",
-                                         att_error, feature, element)
+                            self.logger.error("Encountered Attribute Error %s \
+                                              /n At feature %s /n At element %s",
+                                              att_error, feature, element)
                         continue
                     element_list.append(element_dict)
 
@@ -339,9 +362,9 @@ class Request:
                 element_dict = {}  # element_dict type: Dict[str, Any]
                 for feature in feature_list:
                     element_dict[feature] = results.get(feature)
-                element_list = [element_dict]
+                element_list = element_dict  # [element_dict]
             repository_dict[repo_id] = element_list
-        logger.info("Done getting repository data.")
+        self.logger.info("Done getting repository data.")
         return repository_dict
 
     def get_dependents(self, dependents_details: bool) -> Dict[int, int]:
@@ -354,7 +377,7 @@ class Request:
         for repo, data in self.selected_repos_dict.items():
             repo_name = data.get("name")
             repo_owner_login = data.get("owner").get("login")
-            logger.info("Getting repository %s", repo)
+            self.logger.info("Getting repository %s", repo)
             url_1 = self.query_features.get("dependents").get("request_url_1")
             url_2 = self.query_features.get("dependents").get("request_url_2")
             url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
@@ -426,7 +449,7 @@ class Request:
                                                 nextExists = False
                                             
                                     except Exception as href_info:
-                                        logger.info(href_info)
+                                        self.logger.info(href_info)
                                         time.sleep(2)
                                         nextExists = True
                                         break
@@ -449,7 +472,7 @@ class Request:
         for repo, data in self.selected_repos_dict.items():
             repo_name = data.get("name")
             repo_owner_login = data.get("owner").get("login")
-            logger.info("Getting repository %s", repo)
+            self.logger.info("Getting repository %s", repo)
             url_1 = self.query_features.get("dependencies").get("request_url_1")
             url_2 = self.query_features.get("dependencies").get("request_url_2")
             url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
@@ -480,7 +503,7 @@ class Request:
                             nextExists = True
                             url = url_1 + u["href"]
                 except Exception as href_info:
-                    logger.info(href_info)
+                    self.logger.info(href_info)
                     time.sleep(2)
                     nextExists = True
             dependency_results[repo] = sorted(results)  # len(results)
@@ -501,8 +524,6 @@ class Request:
             sub_feature).get("request_url_1")
         request_url_2 = self.query_features.get(
             sub_feature).get("request_url_2")
-        request_url_3 = self.query_features.get(
-            sub_feature).get("request_url_3")
         feature_list = self.query_features.get(
             sub_feature).get("feature_list")
         feature_key = self.query_features.get(
@@ -558,7 +579,7 @@ class Request:
                                        for dependency in dependencies
                                        if dependency.strip()]
             else:
-                logger.info("Failed to fetch requirements.txt file: %s",
+                self.logger.info("Failed to fetch requirements.txt file: %s",
                             response.status_code)
                 url = request_url_1 + str(repo_id) + request_url_3
                 response = self.session.get(url,
