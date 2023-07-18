@@ -210,6 +210,11 @@ def get_repo_release_score(repo_data) -> Dict[int, int]:
     return release_score
 
 def get_contributors(contributors_data):
+    """
+    committer_email = element.get("commit").get("committer").get("email")  # element.get("committer").get("id")
+    verified = element.get("commit").get("verification").get("verified")
+    author_email = element.get("commit").get("author").get("email")
+    """
     repo_contributions = {}
     for repo, data in contributors_data.items():
         contributions_nr = 0
@@ -239,4 +244,3 @@ def get_organizations(contributors_data, data_object):
                     distinct_organizations.add(org_name)
         repo_organizations[repo] = len(distinct_organizations)
     return repo_organizations
-

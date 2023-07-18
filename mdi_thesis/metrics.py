@@ -8,6 +8,7 @@ import collections
 import math
 from datetime import date, datetime
 # import time
+import regex as re
 from typing import Dict, Tuple, Union  # , List, Any
 import numpy as np
 from dateutil import relativedelta
@@ -751,54 +752,16 @@ def security_advisories(data_object) -> \
     return advisory_scores, advisory_infos
 
 
-# def bus_factor(data_object) -> Dict[int, int]:
-#     """
-#     TODO: May add pareto principle due to similar formula.
-#     Note: Filtered by time factor.
-#     The bus factor represents the number of contributors which can be "lost"
-#     before a project stalls.
-#     :param data_object: Request object, required to gather data
-#     of already selected repositories.
-#     :return: Bus factor for each repository
-#     """
-#     filter_date = date.today() - relativedelta.relativedelta(year=1)
-#     filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-#     commits = data_object.query_repository(["commits"],
-#                                            filters={"since": filter_date})
-#     repo_bus_factor = {}
-#     for repo, commits in commits.get("commits").items():
-#         total_committer = []
-#         no_committer = 0
-#         for commit in commits:
-#             try:
-#                 committer_id = commit.get("committer").get("id")
-#             except AttributeError:
-#                 committer_id = None
-#                 no_committer += 1
-#             total_committer.append(committer_id)
-#         committer_counter = collections.Counter(total_committer).values()
-#         commits_sorted = sorted(committer_counter, reverse=True)
-#         t_1 = sum(committer_counter) * 0.5
-#         t_2 = 0
-#         bus_factor_score = 0
-#         for contributions in commits_sorted:
-#             bus_factor_score += 1
-#             t_2 += contributions
-#             if t_2 >= t_1:
-#                 break
-#         repo_bus_factor[repo] = bus_factor_score
-#     return repo_bus_factor
-
-
-def contributions_distributions(data_object):
+def contributions_distributions(data_object) -> Dict[int, Dict[str, Union[int, float]]]:
     """
-    Includes Bus Factor and Scores representing the Pareto Principle
+    Includes Bus Factor and Scores representing the Pareto Principle.
     :param data_object: Request object, required to gather data
     of already selected repositories.
-    :return: Information about the distribution of the contributions per contributors
-    by calculating the bus factor and the pareto principle for each repository..
+    :return: Information about the distribution of the contributions per
+    contributors by calculating the bus factor and the pareto principle
+    for each repository.
     """
-    filter_date = date.today() - relativedelta.relativedelta(year=1)
+    filter_date = date.today() - relativedelta.relativedelta(years=1)  # years = 1
     filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     commits = data_object.query_repository(["commits"],
                                            filters={"since": filter_date})
@@ -807,12 +770,24 @@ def contributions_distributions(data_object):
         total_committer = []
         no_committer = 0
         for commit in commits:
+            contributor = None
+            co_author = None
             try:
-                committer_id = commit.get("committer").get("id")
+                committer_email = commit.get("commit").get("committer").get("email")
+                author_email = commit.get("commit").get("author").get("email")
+                message = commit.get("commit").get("message")
+                co_author_line = re.findall(r"Co-authored-by:(.*?)>", message)
+                for value in co_author_line:
+                    co_author = value.split("<")[-1]
+                    total_committer.append(co_author)
+                if committer_email != author_email:
+                    contributor = author_email
+                else:
+                    contributor = committer_email
+
             except AttributeError:
-                committer_id = None
                 no_committer += 1
-            total_committer.append(committer_id)
+            total_committer.append(contributor)
         committer_counter = collections.Counter(total_committer).values()
         commits_sorted = sorted(committer_counter, reverse=True)
         t_1 = sum(committer_counter) * 0.5
@@ -823,19 +798,17 @@ def contributions_distributions(data_object):
         total_contributer = len(commits_sorted)
         # Round up since no half contributors exist (hopefully)
         twenty_percent = math.ceil(total_contributer * 0.2)
-        eighty_percent = total_contributions * 0.8
+        eighty_percent = round(total_contributions * 0.8, 2)
         running_contributions = 0
         pareto_ist = 0
         for contrib, contributions in enumerate(commits_sorted, start=1):
             running_contributions += contributions
-            bus_factor_score += 1
-            t_2 += contributions
-            if t_2 >= t_1:
-                break
             if contrib == twenty_percent:
                 # twenty_per_contributions = contrib
                 pareto_ist = running_contributions
-                break
+            if t_2 <= t_1:
+                t_2 += contributions
+                bus_factor_score += 1
         prot_diff = np.round(np.absolute((eighty_percent - pareto_ist)) / (
             (eighty_percent + pareto_ist) / 2), 2)
         pareto_results = {"bus_factor_score": bus_factor_score,
@@ -845,7 +818,7 @@ def contributions_distributions(data_object):
                           eighty_percent,
                           "eighty_percent_contributions_ist":
                           pareto_ist,
-                          "diff_pareto_soll_ist":
+                          "diff_pareto_soll_ist_percent":
                           prot_diff}
         repo_pareto[repo] = pareto_results
     return repo_pareto
@@ -863,36 +836,41 @@ def contributors_per_file(data_object) -> Dict[int, float]:
     """
     filter_date = date.today() - relativedelta.relativedelta(months=1)
     filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-    commit_trees = data_object.get_context_information(
-        main_feature="commits",
-        sub_feature="trees",
-        filters={"since": filter_date_str})
     results_dict = {}
-    for repo, data in commit_trees.items():
+    single_commits = data_object.get_single_object(
+        feature="commits",
+        filters={
+            "since": filter_date_str
+            }, output_format="dict")
+    for repo, commit in single_commits.items():
         file_committer = {}
-        for subdict in data:
-            committer = subdict.get("committer_id")
-            tree = subdict.get("tree")
-            if tree:
-                for element in tree:
-                    element_type = element.get("type")
-                    if element_type == "blob":  # blob refers to files only
-                        path = element.get("path")
-                        if path not in file_committer:
-                            file_committer[path] = {committer}
-                        else:
-                            file_committer[path].add(committer)
+        for features in commit.values():
+            for row in features:
+                files = row.get("files")
+                committer = row.get("commit").get("committer").get("email")
+                author = row.get("commit").get("author").get("email")
+                verification = row.get("commit").get(
+                    "verification").get("verified")
+                if verification:
+                    contributor = author
+                else:
+                    contributor = committer
+                for file in files:
+                    filename = file.get("filename")
+                    if filename not in file_committer:
+                        file_committer[filename] = {contributor}
+                    else:
+                        file_committer[filename].add(contributor)
+
         if file_committer:
             num_contributors_per_files = []
             for committer_ids in file_committer.values():
                 num_contributors_per_files.append(len(committer_ids))
-                # file_committer[file] = len(committer_ids)
             avg_num_contributors_per_file = np.ceil(
                 np.mean(num_contributors_per_files))
         else:
             avg_num_contributors_per_file = None
         results_dict[repo] = avg_num_contributors_per_file
-
     return results_dict
 
 
@@ -934,7 +912,13 @@ def number_of_support_contributors(data_object) -> Dict[int, int]:
 
 
 def elephant_factor():
-    pass
+    """
+    
+    """
+    org_count = utils.get_organizations(
+        contributors_data=base_data.get("contributors"),
+        data_object=data_object)
+    
 
 
 def size_of_community():
@@ -971,8 +955,8 @@ def main():
     # print(code_dependency(obj))
     # print(security_advisories(obj))
     # print(bus_factor(obj))
-    # print(contributions_distributions(obj))
-    print(contributors_per_file(obj))
+    print(contributions_distributions(obj))
+    # print(contributors_per_file(obj))
     # print(number_of_support_contributors(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
 
