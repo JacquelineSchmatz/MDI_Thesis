@@ -8,7 +8,7 @@ import collections
 import math
 import csv
 from datetime import date, datetime
-# import time
+import time
 import regex as re
 from typing import Dict, Tuple, Union  # , List, Any
 import numpy as np
@@ -140,7 +140,8 @@ def criticality_score(data_object) -> Dict[int, float]:
                                  "updated_since": diff_updated_today}
     logger.info("Getting contributor_count...")
     # contributor_count
-    contributor_count = utils.get_contributors(base_data.get("contributors"))
+    contributor_count = utils.get_contributors(base_data.get("contributors"),
+                                               check_contrib=True)
     for repo, cont_count in contributor_count.items():
         scores_per_repo[repo].update({"contributor_count": cont_count})
     logger.info("Getting org_count...")
@@ -432,7 +433,9 @@ def github_community_health_percentage(
                      license_bool, readme]
         true_count = info_list.count(True)
         false_count = info_list.count(False)
+        custom_health_percentage = (len(info_list)/sum(info_list))
         infos = {"community_health_score": score,
+                 "custom_health_score": custom_health_percentage,
                  "true_count": true_count,
                  "false_count": false_count,
                  "description": description,
@@ -557,11 +560,11 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
         issues_infos[repo] = {"total_issues": total_issues,
                               "open_issues": open_issues,
                               "closed_issues": closed_issues,
-                              "average_issue_created_per_week":
+                              "average_issues_created_per_week":
                               average_per_week,
-                              "avg_issue_comments": avg_issue_comments,
-                              "avg_issue_resolving_days": avg_date_diff,
-                              "avg_first_response_time_days":
+                              "average_issue_comments": avg_issue_comments,
+                              "average_issue_resolving_days": avg_date_diff,
+                              "average_first_response_time_days":
                               avg_first_response_time_days,
                               "ratio_open_total": ratio_open,
                               "ratio_closed_total": ratio_closed}
@@ -625,8 +628,14 @@ def support_rate(data_object) -> Dict[int, float]:
                     total_pulls += 1
                     if comments:
                         pulls_with_response += 1
-        issue_support = issues_with_response / total_issues
-        pulls_support = pulls_with_response / total_pulls
+        if total_issues == 0:
+            issue_support = 0
+        else:
+            issue_support = issues_with_response / total_issues
+        if total_pulls == 0:
+            pulls_support = 0
+        else:
+            pulls_support = pulls_with_response / total_pulls
         support_rate_val = ((issue_support + pulls_support)/2)*100
         support_rate_results[repo] = round(support_rate_val, 2)
 
@@ -685,7 +694,7 @@ def security_advisories(data_object) -> \
         closed_adv = 0
         severities = []
         for adv in advisory:
-            # On GitHub, withdrawn advisories can only be removed
+            # On GitHub, advisories can only be set to withdrawn
             # by contacting the support if the advisory was made in error.
             withdrawn_at = bool(adv.get("withdrawn_at"))
             if withdrawn_at:
@@ -797,9 +806,9 @@ def contributions_distributions(data_object) -> Dict[int, Dict[str, Union[int, f
 
         total_contributions = sum(commits_sorted)
         total_contributer = len(commits_sorted)
-        # Round up since no half contributors exist (hopefully)
+        # Round up since no half contributors exist
         twenty_percent = math.ceil(total_contributer * 0.2)
-        eighty_percent = round(total_contributions * 0.8, 2)
+        eighty_percent = math.ceil(total_contributions * 0.8)
         running_contributions = 0
         pareto_ist = 0
         for contrib, contributions in enumerate(commits_sorted, start=1):
@@ -900,7 +909,7 @@ def number_of_support_contributors(data_object) -> Dict[int, int]:
         score = 0
         if total_committer < 5:
             score = 1
-        elif total_committer >=5 and total_committer <= 10:
+        elif total_committer >= 5 and total_committer <= 10:
             score = 2
         elif total_committer > 10 and total_committer <= 20:
             score = 3
@@ -908,43 +917,177 @@ def number_of_support_contributors(data_object) -> Dict[int, int]:
             score = 4
         elif total_committer > 50:
             score = 5
-        support_contributors[repo] = score
+
+        result_score = score/5*100
+        support_contributors[repo] = result_score
     return support_contributors
 
 
-def elephant_factor():
+def elephant_factor(data_object) -> Dict[int, int]:
+    """
+    Calculates the elephant factor (distribution of contributions
+    by organizations user belong to) for each repository.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Elephant factor for each repository
+    """
+    base_data = data_object.query_repository([
+        "contributors"], filters={})
+    repo_elephant_factor = {}
+    for repo, contributors in base_data.get("contributors").items():
+        org_contributions = {}
+        user_contributions = {}
+        for user in contributors:
+            login = user.get("login")
+            contributions = user.get("contributions")
+            user_contributions[login] = contributions
+        contributor_list = list(user_contributions)
+        users = data_object.query_repository(["organization_users"],
+                                             repo_list=contributor_list,
+                                             filters={})
+        for user, data in users.get("organization_users").items():
+            for organization in data:
+                try:
+                    org_name = organization.get("login")
+                except AttributeError:
+                    continue
+                if org_name:
+                    if org_name not in org_contributions:
+                        org_contributions[org_name] = user_contributions.get(user)
+                    else:
+                        org_contributions[org_name] += user_contributions.get(user)
+        t_1 = sum(org_contributions.values()) * 0.5
+        t_2 = 0
+        orgs_sorted = sorted(org_contributions.values(), reverse=True)
+        elephant_factor_score = 0
+        for org_count in orgs_sorted:
+            if t_2 <= t_1:
+                t_2 += org_count
+                elephant_factor_score += 1
+        repo_elephant_factor[repo] = elephant_factor_score
+    return repo_elephant_factor
+
+
+def size_of_community(data_object) -> Dict[int, float]:
+    """
+    The size of community includes contributors and subscribers.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Size of community score for each repository
+    """
+    repo_community = {}
+    base_data = data_object.query_repository(
+        ["repository",
+         "contributors"],
+         filters={}
+         )
+    contributor_count = utils.get_contributors(base_data.get("contributors"),
+                                               check_contrib=False)
+    for repo, data in base_data.get("repository").items():
+        score = 0
+        subscribers_count = data.get("subscribers_count")
+        cont_count = contributor_count.get(repo)
+        community_count = subscribers_count + cont_count
+        if community_count < 50:
+            score = 1
+        elif community_count >= 50 and community_count <= 100:
+            score = 2
+        elif community_count > 100 and community_count <= 200:
+            score = 3
+        elif community_count > 200 and community_count <= 300:
+            score = 4
+        elif community_count > 300:
+            score = 5
+        community_score = (score/5) * 100
+        repo_community[repo] = int(community_score)
+    return repo_community
+
+
+def churn(data_object) -> Dict[int, float]:
+    """
+    Score, representing the code change turn ratio.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Churn score each repository
+    """
+    filter_date = date.today() - relativedelta.relativedelta(months=1)
+    filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    results_dict = {}
+    single_commits = data_object.get_single_object(
+        feature="commits",
+        filters={
+            "since": filter_date_str
+            }, output_format="dict")
+    for repo, commit in single_commits.items():
+        lines_added = 0
+        lines_deleted = 0
+        for features in commit.values():
+            for row in features:
+                stats = row.get("stats")
+                additions = stats.get("additions")
+                deletions = stats.get("deletions")
+                lines_added += additions
+                lines_deleted += deletions
+        churn_score = lines_deleted / lines_added
+        results_dict[repo] = round(churn_score, 2)
+    return results_dict
+     
+
+
+def branch_lifecycle(data_object):
     """
     
     """
-    org_count = utils.get_organizations(
-        contributors_data=base_data.get("contributors"),
-        data_object=data_object)
-    
-
-
-def size_of_community():
     pass
 
 
-def churn():
-    pass
-
-
-def branch_lifecycle():
-    pass
-
+def select_to_csv(logger):
+    # languages = ["python", "java", "php", "JavaScript", "cpp"]
+    languages = ["python"]
+    header = ["language", "repo_id", "repo_name", "repo_owner_login", "size", "stargazers_count", "watchers_count"]
+    filter = "&sort=stars&order=desc&is:public&template:false&archived:false&pushed:>=2022-12-31"
+    # filter = "&sort=stars&order=desc"
+    with open('preselected_repos_5.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for lang in languages:
+            logger.debug(f"Getting language: {lang}")
+            logger.debug(f"Getting repos with language: {lang}")
+            query = "language:" + lang + filter
+            obj = select_data(query_parameters=query, repo_nr=1000)
+            print(f"Finished getting search results for language {lang}")
+            quit()
+            epos = obj.query_repository(["repository"], filters={})
+            for repo, data in epos.get("repository").items():
+                try:
+                    language = data.get("language")
+                    name = data.get("name")
+                    owner = data.get("owner").get("login")
+                    size = data.get("size")
+                    stargazers_count = data.get("stargazers_count")
+                    watchers_count = data.get("watchers_count")
+                    row = [language, repo, name, owner, size, stargazers_count, watchers_count]
+                except AttributeError:
+                    logger.debug(f"Could not query repo {repo}")
+                    row = f"Could not query repo {repo}"
+                writer.writerow(row)
+            time.sleep(240)
+        
 
 def main():
     """
     Main in progress
     """
+    print(datetime.now())
     logger = base.get_logger(__name__)
     logger.setLevel(logging.DEBUG)
-    # repo_ids_path = "mdi_thesis/preselected_repos.txt"
+    repo_ids_path = "mdi_thesis/preselected_repos.txt"
 
     # selected_repos.select_repos(repo_list=repo_ids)
     # obj = select_data(path=repo_ids_path)
     # obj = select_data(repo_nr=1, order="desc")
+    # print(elephant_factor(obj))
+
     # print(obj)
     # print(maturity_level(obj))
     # print(osi_approved_license(obj))
@@ -961,6 +1104,9 @@ def main():
     # print(contributors_per_file(obj))
     # print(number_of_support_contributors(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
+    # print(size_of_community(obj))
+    select_to_csv(logger=logger)
+    
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))
@@ -969,87 +1115,6 @@ def main():
     # .get("community_health")  # .get(191113739))
     # print(len(selected_repos.query_repository(["contributors"])))
     # .get("community_health")  # .get(191113739)))
-    header = ["language", "repo_id", "repo_name", "repo_owner_login", "size", "stargazers_count", "watchers_count"]
-    with open('preselected_repos.csv', 'w') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        py_query = "language:python&sort=stars&order=desc&is:public&template:false"
-        py_obj = select_data(query_parameters=py_query, repo_nr=1000)
-        python_repos = py_obj.query_repository(["repository"], filters={})
-        for repo, data in python_repos.get("repository").items():
-            try:
-                language = data.get("language")
-                name = data.get("name")
-                owner = data.get("owner").get("login")
-                size = data.get("size")
-                stargazers_count = data.get("stargazers_count")
-                watchers_count = data.get("watchers_count")
-                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
-                writer.writerow(row)
-            except AttributeError:
-                pass
-        java_query = "language:java&sort=stars&order=desc&is:public&template:false"
-        java_obj = select_data(query_parameters=java_query, repo_nr=1000)
-        java_repos = java_obj.query_repository(["repository"], filters={})
-        for repo, data in java_repos.get("repository").items():
-            try:
-                language = data.get("language")
-                name = data.get("name")
-                owner = data.get("owner").get("login")
-                size = data.get("size")
-                stargazers_count = data.get("stargazers_count")
-                watchers_count = data.get("watchers_count")
-                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
-                writer.writerow(row)
-            except AttributeError:
-                pass
-        php_query = "language:php&sort=stars&order=desc&is:public&template:false"
-        php_obj = select_data(query_parameters=php_query, repo_nr=1000)
-        php_repos = php_obj.query_repository(["repository"], filters={})
-
-        for repo, data in php_repos.get("repository").items():
-            try:
-                language = data.get("language")
-                name = data.get("name")
-                owner = data.get("owner").get("login")
-                size = data.get("size")
-                stargazers_count = data.get("stargazers_count")
-                watchers_count = data.get("watchers_count")
-                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
-                writer.writerow(row)
-            except AttributeError:
-                pass
-
-        c_query = "language:c&sort=stars&order=desc&is:public&template:false"
-        c_obj = select_data(query_parameters=c_query, repo_nr=1000)
-        c_repos = c_obj.query_repository(["repository"], filters={})
-        for repo, data in c_repos.get("repository").items():
-            try:
-                language = data.get("language")
-                name = data.get("name")
-                owner = data.get("owner").get("login")
-                size = data.get("size")
-                stargazers_count = data.get("stargazers_count")
-                watchers_count = data.get("watchers_count")
-                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
-                writer.writerow(row)
-            except AttributeError:
-                pass
-        cpp_query = "language:cpp&sort=stars&order=desc&is:public&template:false"
-        cpp_obj = select_data(query_parameters=cpp_query, repo_nr=1000)
-        cpp_repos = cpp_obj.query_repository(["repository"], filters={})
-        for repo, data in cpp_repos.get("repository").items():
-            try:
-                language = data.get("language")
-                name = data.get("name")
-                owner = data.get("owner").get("login")
-                size = data.get("size")
-                stargazers_count = data.get("stargazers_count")
-                watchers_count = data.get("watchers_count")
-                row = [language, repo, name, owner, size, stargazers_count, watchers_count]
-                writer.writerow(row)
-            except AttributeError:
-                pass
- 
+    print(datetime.now())
 if __name__ == "__main__":
     main()

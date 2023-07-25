@@ -14,6 +14,7 @@ from typing import Dict, List, Any
 import base64
 import re
 import logging
+import math
 from bs4 import BeautifulSoup
 import requests
 import mdi_thesis.constants as constants
@@ -35,15 +36,16 @@ def get_logger(name: str) -> logging.Logger:
         logger.propagate = 0
         console = logging.StreamHandler()
         logger.addHandler(console)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(message)s')
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - line: %(lineno)s - %(funcName)s - %(module)s - %(message)s')
         console.setFormatter(formatter)
+        logger.setLevel(logging.DEBUG)
     return logger
 
 class Request:
     """
     Class for GitHub Request
     """
-
     def __init__(self) -> None:
         self.token = constants.API_TOKEN
         self.results_per_page = 100
@@ -57,7 +59,6 @@ class Request:
             "mdi_thesis/query_features.json", encoding="utf-8")
         self.query_features = json.load(query_features_file)
         self.logger = get_logger(__name__)
-        self.logger.setLevel(logging.DEBUG)
 
     def select_repos(
         self,
@@ -79,6 +80,7 @@ class Request:
         :returns: List with dictionaries of selected repositories
         """
         selected_repos = []
+        results_items = []
         if repo_list:
             for item in repo_list:
                 url = f"https://api.github.com/repositories/{item}"
@@ -93,74 +95,70 @@ class Request:
                 selected_repos.append(results)
 
         else:
-            # search_url = (
-            #     "https://api.github.com/search/repositories?q=language:"
-            #     + language
-            #     + "&sort="
-            #     + sort
-            #     + "&order="
-            #     + order
-            #     + "&help-wanted-issues="
-            #     + help_wanted_issues
-            #     + "&access_token="
-            #     + self.token
-            #     + "?per_page="  # "?simple=yes&per_page="
-            #     + str(self.results_per_page)
-            #     + "&page=1"
-            # )
             search_url = (
                 "https://api.github.com/search/repositories?q="
                 + query_parameters
                 + "&access_token="
                 + self.token
-                + "?per_page="  # "?simple=yes&per_page="
+                + "&per_page="  
+                # + "?simple=yes&per_page="
                 + str(self.results_per_page)
+            )
+            initial_search_url = (
+                search_url
                 + "&page=1"
             )
-
-            for run in range(0, 3):
-                try:
-                    repo_nr_queried = 0
-                    response = self.session.get(
-                        search_url, headers=self.headers, timeout=100)
-                    results = response.json()
-                    results_items = results["items"]
-                    break
-                except Exception as err:
-                    self.logger.error("Unexpected %s, %s", err, type(err))
-                    # self.logger.debug("Error raised at data result: %s", results)
-                    raise
-            
-            if "last" in response.links:
-                # nr_of_pages = response.links.get(
-                #     "last").get("url").split("&page=", 1)[1]
-                nr_of_pages = round(repo_nr/self.results_per_page)
-                if results:
-                    if int(nr_of_pages) > 1 and repo_nr_queried < repo_nr:
-                        repo_nr_queried += self.results_per_page
-                        for page in range(2, int(nr_of_pages) + 1):
+            self.logger.debug("Initial search query: %s", initial_search_url)
+            # for run in range(0, 3):
+            page_counter = 2
+            # while len(results_items) < repo_nr:
+            try:
+                response = self.session.get(
+                    initial_search_url, headers=self.headers, timeout=100)
+                results = response.json()
+                self.logger.info("Query page 1")
+#                     if results["items"]:
+                results_items = results["items"]
+                if "last" in response.links:
+                    nr_of_pages = math.ceil(repo_nr/self.results_per_page)
+                    if int(nr_of_pages) > 1 and len(results_items) < repo_nr:  # and repo_nr_queried < repo_nr:
+                        # repo_nr_queried += self.results_per_page
+                        # for page in range(2, int(nr_of_pages) + 1):
+                        while page_counter <= nr_of_pages:
                             url_repo = (
-                                f"{search_url}?simple=yes"
-                                f"&per_page=100&page={page}"
+                                f"{search_url}"
+                                f"&page={page_counter}"
                             )
-                            res = self.session.get(
-                                url_repo, headers=self.headers, timeout=100)
-                            self.logger.info("Query page %s of %s",
-                                        page, nr_of_pages)
-                            logging.info("Extending results...")
+                            self.logger.debug("Search query: %s", url_repo)
                             try:
-                                if "items" in res.json():
-                                    next_res = res.json()["items"]
+                                res = self.session.get(
+                                    url_repo, headers=self.headers,
+                                    timeout=100)
+                                self.logger.info("Query page %s of %s",
+                                                    page_counter, nr_of_pages)
+                                logging.info("Extending results...")
+                                # if "items" in res.json():
+                                next_res = res.json()["items"]
+                                if next_res:
                                     results_items.extend(next_res)
+                                    page_counter += 1
+                                    self.logger.debug("Current number of elements in results_items list: %s",
+                                                      len(results_items))
                             except Exception as error:
                                 self.logger.error(
-                                    "Could not extend: %s...\nError: %s",
-                                    res.json(), error)
+                                    "Could not query page: %s...\nError: %s \nRetry in 5 minutes",
+                                    page_counter, error)
+                                time.sleep(300)
+            except Exception as err:
+                self.logger.error("Unexpected %s, %s", err, type(err))
+                time.sleep(300)
+                # continue
 
             selected_repos = results_items[:repo_nr]
+        print(f"Len before cleaning: {len(selected_repos)}")
         self.selected_repos_dict = utils.clean_results(
             selected_repos)
-
+        print(f"Len after cleaning: {len(self.selected_repos_dict )}")
         return selected_repos
 
     def query_repository(
@@ -286,6 +284,7 @@ class Request:
         :return: Repository data of the selected features.
         """
         repository_dict = {}
+        results = {}
         filter_str = ""
         if filters:
             for key, value in filters.items():
@@ -298,8 +297,17 @@ class Request:
             repositories = repo_list
         else:
             repositories = self.selected_repos_dict
-
+        failed_repo_id = ""
+        repo_counter = 0
+        repo_test_list = []
+        print(f"Getting {len(repositories)} Repositories...")
         for repo_id in repositories:
+            if failed_repo_id:
+                repo_id = failed_repo_id
+            else:
+                repo_counter += 1
+                repo_test_list.append(repo_id)
+                # print(repo_counter)
             self.logger.info("Getting repository %s", repo_id)
             if request_url_2:
                 url_repo = str(request_url_1 + str(repo_id) + request_url_2)
@@ -313,35 +321,59 @@ class Request:
                          str(self.results_per_page) +
                          "&page=1"
                          )
-            response = self.session.get(
-                start_url, headers=self.headers, timeout=100)
-            results = response.json()
-
-            if "last" in response.links:
-                nr_of_pages = (
-                    response.links.get("last").get("url").split("&page=", 1)[1]
-                )
-
-                if int(nr_of_pages) > 1:
-                    self.logger.info("Getting responses for all pages...")
-                    for page in range(2, int(nr_of_pages) + 1):
-                        self.logger.info("Query page %s of %s", page, nr_of_pages)
-                        url = (str(url_repo) +
-                               "?simple=yes&" +
-                               str(filter_str) +
-                               "per_page=" +
-                               str(self.results_per_page) +
-                               "&page=" +
-                               str(page))
-                        res = self.session.get(
-                            url, headers=self.headers, timeout=100)
-                        logging.info("Extending results...")
-                        try:
-                            results.extend(res.json())
-                        except Exception as error:
-                            self.logger.info(
-                                "Could not extend data: %s:%s",
-                                res.json(), error)
+            try:
+                response = self.session.get(
+                    start_url, headers=self.headers, timeout=100)
+                results = response.json()
+                if results:
+                    failed_repo_id = ""
+                else:
+                    print(f"Repo {repo_id} failed")
+                    failed_repo_id = repo_id
+                    continue
+                if "last" in response.links:
+                    nr_of_pages = (
+                        response.links.get("last").get("url").split("&page=", 1)[1]
+                    )
+                    if int(nr_of_pages) > 1:
+                        self.logger.info("Getting responses for all pages...")
+                        page_counter = 2
+                        while True:
+                        # for page in range(2, int(nr_of_pages) + 1):
+                            try:
+                                self.logger.info("Query page %s of %s",
+                                                 page_counter, nr_of_pages)
+                                url = (str(url_repo) +
+                                       "?simple=yes&" +
+                                       str(filter_str) +
+                                       "per_page=" +
+                                       str(self.results_per_page) +
+                                       "&page=" +
+                                       str(page_counter))
+                                res = self.session.get(
+                                    url, headers=self.headers, timeout=100)
+                                logging.info("Extending results...")
+                                if res:
+                                    page_counter += 1
+                                    failed_repo_id = ""
+                                    results.extend(res.json())
+                                    if page_counter > nr_of_pages:
+                                        break
+                                else:
+                                    failed_repo_id = repo_id
+                            except Exception as error:
+                                self.logger.error(
+                                    "Could not query page: %s\tRepo:%s\nError: %s",
+                                    page_counter, repo_id, error)
+                                time.sleep(300)
+            except Exception as repo_error:
+                self.logger.error(
+                    "Could not query Repo:%s\nError: %s",
+                    repo_id, repo_error)
+                print(f"Could not query results from Repo: {repo_id}")
+                print("Retry in 5 minutes.")
+                failed_repo_id = repo_id
+                time.sleep(300)
 
             self.logger.info("Finished getting responses for all queries.")
             element_list = []  # element_list type: List[Dict[str, Any]]
@@ -364,6 +396,8 @@ class Request:
                     element_dict[feature] = results.get(feature)
                 element_list = element_dict  # [element_dict]
             repository_dict[repo_id] = element_list
+        print(len(repo_test_list))
+        print(len(set(repo_test_list)))
         self.logger.info("Done getting repository data.")
         return repository_dict
 

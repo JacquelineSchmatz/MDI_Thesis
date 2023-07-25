@@ -168,7 +168,7 @@
     "contributors":
         {
             "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/contributors",
+            "request_url_2": "/contributors?anon=1",
             "request_url_3": "",
             "feature_list": [
                 "id",
