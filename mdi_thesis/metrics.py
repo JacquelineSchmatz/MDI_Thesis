@@ -46,7 +46,6 @@ def select_data(repo_nr: int = 0,
         selected_repos.select_repos(
             repo_nr=repo_nr,
             query_parameters=query_parameters,
-            order=order,
             repo_list=[])
     return selected_repos
 
@@ -1042,12 +1041,12 @@ def branch_lifecycle(data_object):
 
 
 def select_to_csv(logger):
-    # languages = ["python", "java", "php", "JavaScript", "cpp"]
-    languages = ["python"]
+    languages = ["python", "java", "php", "JavaScript", "cpp"]
+    # languages = ["python"]
     header = ["language", "repo_id", "repo_name", "repo_owner_login", "size", "stargazers_count", "watchers_count"]
     filter = "&sort=stars&order=desc&is:public&template:false&archived:false&pushed:>=2022-12-31"
     # filter = "&sort=stars&order=desc"
-    with open('preselected_repos_5.csv', 'w', newline='') as f:
+    with open('repo_sample_large.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(header)
         for lang in languages:
@@ -1056,9 +1055,8 @@ def select_to_csv(logger):
             query = "language:" + lang + filter
             obj = select_data(query_parameters=query, repo_nr=1000)
             print(f"Finished getting search results for language {lang}")
-            quit()
-            epos = obj.query_repository(["repository"], filters={})
-            for repo, data in epos.get("repository").items():
+            repos = obj.query_repository(["repository"], filters={})
+            for repo, data in repos.get("repository").items():
                 try:
                     language = data.get("language")
                     name = data.get("name")

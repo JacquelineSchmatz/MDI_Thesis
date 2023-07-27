@@ -28,10 +28,19 @@ def clean_results(
     """
     dictionary_of_list = {}
     key_list = ["id", "node_id", "name", "owner", "html_url"]
+    item_counter = 0
+    test_dict = {}
     for item in results:
         if "id" in item:
+            item_counter += 1
             repo_id = item["id"]
+            repo_name = item["name"]
+            repo_owner = item["owner"]
+            # if repo_id in dictionary_of_list:
+                # print(f"Duplicate repo: {repo_id} at row {item_counter}, {repo_name}, {repo_owner}")
+                # print(f"First occurence of repo: {repo_id} at row {test_dict.get(repo_id)}")
             selected_items = {k: v for k, v in item.items() if k in key_list}
+            test_dict[repo_id] = [item_counter, repo_name, repo_owner]
             dictionary_of_list[repo_id] = selected_items
         else:
             pass
@@ -209,20 +218,30 @@ def get_repo_release_score(repo_data) -> Dict[int, int]:
         release_score[repo] = score
     return release_score
 
-def get_contributors(contributors_data):
+
+def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
     """
-    committer_email = element.get("commit").get("committer").get("email")  # element.get("committer").get("id")
-    verified = element.get("commit").get("verification").get("verified")
-    author_email = element.get("commit").get("author").get("email")
+    Gets number of contributors.
+    :param contributors_data: Data with user and their contributions
+    :param check_contrib: True if for contributions has to be checked
+    :return: Number of contributors per repository
     """
-    repo_contributions = {}
+    repo_contributors = {}
     for repo, data in contributors_data.items():
-        contributions_nr = 0
-        for user in data:
-            contributions = user.get("contributions")
-            contributions_nr += contributions
-        repo_contributions[repo] = contributions_nr
-    return repo_contributions
+        # contributions_nr = 0
+        contributors_nr = 0
+        print(repo)
+        print(len(data))
+        if check_contrib:
+            for user in data:
+                contributions = user.get("contributions")
+                if contributions:
+                    contributors_nr += 1
+        else:
+            contributors_nr = len(data)
+                # contributions_nr += contributions
+        repo_contributors[repo] = contributors_nr
+    return repo_contributors
 
 def get_organizations(contributors_data, data_object):
     repo_organizations = {}
@@ -230,9 +249,6 @@ def get_organizations(contributors_data, data_object):
         contrib_list = []
         for user in contributors:
             contrib_list.append(user.get("login"))
-        # user_company = data_object.query_repository(["users"],
-        #                                             repo_list=contrib_list,
-        #                                             filters={})
         users = data_object.query_repository(["organization_users"],
                                              repo_list=contrib_list,
                                              filters={})

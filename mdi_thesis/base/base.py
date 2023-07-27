@@ -64,12 +64,7 @@ class Request:
         self,
         repo_nr: int,
         repo_list: List[int],
-        query_parameters: str = "",
-        language: str = "python",
-        sort: str = "stars",
-        order: str = "desc",
-        help_wanted_issues: str = "True",
-        
+        query_parameters: str = ""
     ) -> List[Dict[str, Any]]:
         """
         Select Repositories according to Parameters
@@ -93,6 +88,7 @@ class Request:
                     )
                     results.extend(res.json())
                 selected_repos.append(results)
+            self.selected_repos_dict = utils.clean_results(selected_repos)
 
         else:
             search_url = (
@@ -109,57 +105,54 @@ class Request:
                 + "&page=1"
             )
             self.logger.debug("Initial search query: %s", initial_search_url)
-            # for run in range(0, 3):
             page_counter = 2
-            # while len(results_items) < repo_nr:
-            try:
-                response = self.session.get(
-                    initial_search_url, headers=self.headers, timeout=100)
-                results = response.json()
-                self.logger.info("Query page 1")
-#                     if results["items"]:
-                results_items = results["items"]
-                if "last" in response.links:
-                    nr_of_pages = math.ceil(repo_nr/self.results_per_page)
-                    if int(nr_of_pages) > 1 and len(results_items) < repo_nr:  # and repo_nr_queried < repo_nr:
-                        # repo_nr_queried += self.results_per_page
-                        # for page in range(2, int(nr_of_pages) + 1):
-                        while page_counter <= nr_of_pages:
-                            url_repo = (
-                                f"{search_url}"
-                                f"&page={page_counter}"
-                            )
-                            self.logger.debug("Search query: %s", url_repo)
-                            try:
-                                res = self.session.get(
-                                    url_repo, headers=self.headers,
-                                    timeout=100)
-                                self.logger.info("Query page %s of %s",
-                                                    page_counter, nr_of_pages)
-                                logging.info("Extending results...")
-                                # if "items" in res.json():
-                                next_res = res.json()["items"]
-                                if next_res:
-                                    results_items.extend(next_res)
-                                    page_counter += 1
-                                    self.logger.debug("Current number of elements in results_items list: %s",
-                                                      len(results_items))
-                            except Exception as error:
-                                self.logger.error(
-                                    "Could not query page: %s...\nError: %s \nRetry in 5 minutes",
-                                    page_counter, error)
-                                time.sleep(300)
-            except Exception as err:
-                self.logger.error("Unexpected %s, %s", err, type(err))
-                time.sleep(300)
-                # continue
+            query_success = False
+            results = []
+            while len(self.selected_repos_dict) < repo_nr:
+                # while not query_success:
+                try:
+                    self.logger.info("Query page 1")
+                    response = self.session.get(
+                        initial_search_url, headers=self.headers, timeout=100)
+                    results = response.json()
+                    
+                    results_items = results["items"]
+                    if response.links.get('next'):
+                        results = self.get_next_pages(response=response,
+                                                      results=results_items)
+                    print(f"Len before cleaning: {len(self.selected_repos_dict)}")
+                    cleaned_results = utils.clean_results(results)
+                    self.selected_repos_dict.update(cleaned_results)
+                    print(f"Len after cleaning: {len(self.selected_repos_dict)}")
+                    # query_success = True
+                except KeyError as key_err:
+                    self.logger.error("Key error: %s", key_err)
+                    time.sleep(300)
+                else:
+                    time.sleep(300)
 
-            selected_repos = results_items[:repo_nr]
-        print(f"Len before cleaning: {len(selected_repos)}")
-        self.selected_repos_dict = utils.clean_results(
-            selected_repos)
-        print(f"Len after cleaning: {len(self.selected_repos_dict )}")
+                selected_repos = results_items[:repo_nr]
+
         return selected_repos
+
+    def get_next_pages(self, response, results):
+        """
+        """
+        while response.links.get('next'):
+            try:
+                self.logger.debug("Search query: %s",
+                                  response.links.get("next").get("url"))
+                response = self.session.get(response.links['next']['url'],
+                                            headers=self.headers)
+                next_result = response.json()["items"]
+                results.extend(next_result)
+
+            except Exception as error:
+                self.logger.error(
+                    "Query failed...\nError: %s \nRetry in 5 minutes", error)
+                time.sleep(300)
+                continue
+        return results
 
     def query_repository(
         self,
