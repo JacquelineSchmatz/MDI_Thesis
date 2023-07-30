@@ -7,7 +7,7 @@ import logging
 import collections
 import math
 import csv
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import time
 import regex as re
 from typing import Dict, Tuple, Union  # , List, Any
@@ -29,8 +29,7 @@ import mdi_thesis.external as external
 
 def select_data(repo_nr: int = 0,
                 path: str = "",
-                query_parameters: str = "",
-                order: str = "desc"
+                query_parameters: str = ""
                 ):
     """
     :param path:
@@ -81,6 +80,7 @@ def maturity_level(data_object) -> Dict[int, int]:
 
 def osi_approved_license(data_object) -> Dict[int, bool]:
     """
+    Checks if a repos license is osi approved.
     :param data_object: Request object, required to gather data
     of already selected repositories.
     :return: Repositories with corresponding results.
@@ -104,12 +104,66 @@ def osi_approved_license(data_object) -> Dict[int, bool]:
 
 def technical_fork(data_object):
     """
-    Use number of forks as raw number from repository information!
+    Contributing forks are considered as forks which have been pushed to
+    the orgin project.
+    :param data_object: Request object, required to gather data
+    of already selected repositories.
+    :return: Repositories with fork metrics and information.
     """
-    pass
+    filter_date = datetime.today() - relativedelta.relativedelta(years=1)
+    fork_data = data_object.query_repository(["forks"],
+                                            filters={})
+    fork_results = {}
+    for repo, data in fork_data.get("forks").items():
+        created_at_times = []
+        forks_contributed = 0
+        forks_not_contributed = 0
+        for fork in data:
+            fork_created_at = fork.get("created_at")
+            fork_date = datetime.strptime(
+                fork_created_at, '%Y-%m-%dT%H:%M:%SZ')
+            if fork_date >= filter_date:
+                created_at_times.append(fork_date)
+                if fork.get("published_at"):
+                    forks_contributed += 1
+                else:
+                    forks_not_contributed += 1
+
+        contributed_ratio = (forks_contributed /
+                             (forks_contributed + forks_not_contributed))
+        not_contributed_ratio = (forks_not_contributed /
+                                 (forks_contributed + forks_not_contributed))
+
+        if created_at_times:
+            # Sort the datetime list
+            created_at_times.sort()
+            earliest_date = created_at_times[0].date()
+            latest_date = created_at_times[-1].date()
+            num_weeks = (latest_date - earliest_date).days // 7 + 1
+            # Count the number of elements per week
+            elements_per_week = [0] * num_weeks
+            for fork_datetime in created_at_times:
+                week_index = (fork_datetime.date() - earliest_date).days // 7
+                elements_per_week[week_index] += 1
+            average_per_week = round(np.mean(elements_per_week))
+        else:
+            average_per_week = None
+        fork_results[repo] = {"total_forks":
+                              (forks_contributed + forks_not_contributed),
+                              "forks_contributed":
+                              forks_contributed,
+                              "forks_not_contributed":
+                              forks_not_contributed,
+                              "forks_contributed_ratio":
+                              contributed_ratio,
+                              "forks_not_contributed_ratio":
+                              not_contributed_ratio,
+                              "average_forks_created_per_week":
+                              average_per_week}
+    return fork_results
 
 
-def criticality_score(data_object) -> Dict[int, float]:
+def criticality_score(data_object, logger) -> Dict[int, float]:
     """
     :param data_object: Request object, required to gather data
     of already selected repositories.
@@ -170,7 +224,7 @@ def criticality_score(data_object) -> Dict[int, float]:
                 continue
         # repo_commits[repo] = repo_commit_dates
 
-        if repo_commit_dates:
+        if len(repo_commit_dates) > 1:
             # Sort the datetime list
             repo_commit_dates.sort()
             earliest_date = repo_commit_dates[0].date()
@@ -184,7 +238,7 @@ def criticality_score(data_object) -> Dict[int, float]:
             average_per_week = np.mean(elements_per_week)  # sum(elements_per_week) / num_weeks
 
         else:
-            average_per_week = 0
+            average_per_week = None
             # commit_frequency[repo] = []
         scores_per_repo[repo].update({"commit_frequency": average_per_week})
 
@@ -233,6 +287,8 @@ def criticality_score(data_object) -> Dict[int, float]:
         scores_per_repo[repo].update({"closed_issues_count": closed_issues,
                                       "updated_issues_count": updated_issues})
     # comment_frequency
+    # TODO: May check for created_at from single comments
+    # All comments from an issue within the since parameter are included now
     logger.info("Getting comment_frequency...")
     issue_comments = data_object.get_single_object(
         feature="issue_comments",
@@ -250,7 +306,7 @@ def criticality_score(data_object) -> Dict[int, float]:
         if comment_count_list:
             avg_comment_count = round(np.mean(comment_count_list), 0)
         else:
-            avg_comment_count = 0
+            avg_comment_count = None
         scores_per_repo[repo].update({"comment_frequency": avg_comment_count})
     # dependents_count
     logger.info("Getting dependents_count...")
@@ -329,9 +385,14 @@ def pull_requests(data_object) -> Dict[int, Dict[str, float]]:
             elif state == "closed":
                 state_closed += 1
         avg_date_diff = round(np.mean(date_diffs))
-        ratio_open = round((state_open / total_pulls), 2)
-        ratio_closed = round((state_closed / total_pulls), 2)
-        ratio_merged = round((pulls_merged / total_pulls), 2)
+        if total_pulls > 0:
+            ratio_open = round((state_open / total_pulls), 2)
+            ratio_closed = round((state_closed / total_pulls), 2)
+            ratio_merged = round((pulls_merged / total_pulls), 2)
+        else:
+            ratio_open = None
+            ratio_closed = None
+            ratio_merged = None
         pull_results[repo] = {"total_pulls": total_pulls,
                               "avg_pull_closed_days": avg_date_diff,
                               "ratio_open_total": ratio_open,
@@ -384,9 +445,14 @@ def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
         pull_count = pull_issue_list.count(True)
         no_pull_count = pull_issue_list.count(False)
         avg_date_diff = round(np.mean(date_diffs))
-        ratio_open = round((open_issues / total_issues), 2)
-        ratio_closed = round((closed_issues / total_issues), 2)
-        ratio_pull_issue = round((pull_count / total_issues), 2)
+        if total_issues > 0:
+            ratio_open = round((open_issues / total_issues), 2)
+            ratio_closed = round((closed_issues / total_issues), 2)
+            ratio_pull_issue = round((pull_count / total_issues), 2)
+        else:
+            ratio_open = None
+            ratio_closed = None
+            ratio_pull_issue = None
         velocity_results[repo] = {"total_issues": total_issues,
                                   "pull_count": pull_count,
                                   "no_pull_count": no_pull_count,
@@ -522,7 +588,7 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
                     date_diff = closed_at - issue_created_at
                     issue_close_times.append(date_diff.days)
 
-        if issue_creation_times:
+        if len(issue_creation_times) > 1:
             # Sort the datetime list
             issue_creation_times.sort()
             earliest_date = issue_creation_times[0].date()
@@ -535,7 +601,7 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
                 elements_per_week[week_index] += 1
             average_per_week = round(np.mean(elements_per_week))  # sum(elements_per_week) / num_weeks
         else:
-            average_per_week = 0
+            average_per_week = None
 
         if issue_close_times:
             avg_date_diff = round(np.mean(issue_close_times))
@@ -619,7 +685,6 @@ def support_rate(data_object) -> Dict[int, float]:
             for issue, comments in repo_issues.items():
                 # If issue is no pull
                 if not issue_flag.get(issue):
-                    print(issue)
                     total_issues += 1
                     if comments:
                         issues_with_response += 1
@@ -627,14 +692,15 @@ def support_rate(data_object) -> Dict[int, float]:
                     total_pulls += 1
                     if comments:
                         pulls_with_response += 1
-        if total_issues == 0:
-            issue_support = 0
-        else:
+        if total_issues > 0:
             issue_support = issues_with_response / total_issues
-        if total_pulls == 0:
-            pulls_support = 0
         else:
+            issue_support = 0
+        if total_pulls > 0:
             pulls_support = pulls_with_response / total_pulls
+            
+        else:
+            pulls_support = 0
         support_rate_val = ((issue_support + pulls_support)/2)*100
         support_rate_results[repo] = round(support_rate_val, 2)
 
@@ -653,6 +719,7 @@ def code_dependency(data_object) -> Dict[int, Dict]:
     :return: total upstream and downstream dependencies +
     Visible downstream dependencies
     """
+    # TODO: filter out dependencies with value "-"
     dependencies = {}
     upstream_dependencies = data_object.get_dependencies()
     downstream_dependencies = data_object.get_dependents(
@@ -1031,20 +1098,109 @@ def churn(data_object) -> Dict[int, float]:
         results_dict[repo] = round(churn_score, 2)
     return results_dict
      
-
-
 def branch_lifecycle(data_object):
     """
     
+    Note: avg datediff has less information value if last created branch
+    was created years ago.
+    TODO: Check what metrics can be calculated further
+    then work on small sample
     """
-    pass
+    today = datetime.today()
+    stale_branch_states = data_object.get_branches(activity="stale")
+    active_branch_states = data_object.get_branches(activity="active")
 
+    branches = data_object.get_single_object(
+        feature="branches",
+        filters={},
+        output_format="dict"
+        )
+    branch_results = {}
+    for repo, branches in branches.items():
+        dates = []
+        for branch, elements in branches.items():
+            elem = elements[0]
+            if branch != "master":
+                # committer = elem.get("commit").get("commit").get("author").get("email")
+                commit_date = elem.get("commit").get("commit").get("author").get("date")
+                commit_date = datetime.strptime(commit_date,
+                                                '%Y-%m-%dT%H:%M:%SZ')
+                dates.append(commit_date)
+
+        total_stale = len(stale_branch_states.get(repo))
+        total_active = len(active_branch_states.get(repo))
+        all_branches = {}
+        all_branches.update(stale_branch_states[repo])
+        all_branches.update(active_branch_states[repo])
+        total_branches = len(all_branches)
+        branch_state_counter = collections.Counter(
+            all_branches.values())
+
+        if total_branches > 0:
+            stale_ratio = (total_stale / total_branches) * 100
+            active_ratio = (total_active / total_branches) * 100
+            total_merged = branch_state_counter["Merged"]
+            merged_ratio = (total_merged / total_branches) * 100
+            total_compare = branch_state_counter["Compare"]
+            compare_ratio = (total_compare / total_branches) * 100
+            total_open = branch_state_counter["Open"]
+            open_ratio = (total_open / total_branches) * 100
+            total_closed = branch_state_counter["Closed"]
+            closed_ratio = (total_closed / total_branches) * 100
+        else:
+            stale_ratio = None
+            active_ratio = None
+            merged_ratio = None
+            compare_ratio = None
+            open_ratio = None
+            closed_ratio = None
+
+        # Calculating time metrics
+        dates.sort()
+        total_dates = len(dates)
+        time_difference = timedelta(0)
+        time_diff_till_today = timedelta(0)
+        for d in dates:
+            time_diff_till_today += today - d
+        for i in range(1, len(dates), 1):
+            time_difference += dates[i] - dates[i-1]
+
+        # Time frequencies are only considered to be valid
+        # when at least 2 values exist
+        if total_dates > 1:
+            branch_avg_age = (time_diff_till_today / total_dates).days
+            branch_creation_frequency = (time_difference / total_dates).days
+        else:
+            branch_avg_age = None
+            branch_creation_frequency = None
+
+        branch_results[repo] = {"branch_creation_frequency_days":
+                                branch_creation_frequency,
+                                "branch_avg_age_days":
+                                branch_avg_age,
+                                "stale_ratio":
+                                stale_ratio,
+                                "active_ratio":
+                                active_ratio,
+                                "merged_ratio":
+                                merged_ratio,
+                                "compare_ratio":
+                                compare_ratio,
+                                "open_ratio":
+                                open_ratio,
+                                "closed_ratio":
+                                closed_ratio,
+                                "branch_state_counter":
+                                branch_state_counter
+                                }
+    return branch_results
 
 def select_to_csv(logger):
     languages = ["python", "java", "php", "JavaScript", "cpp"]
     # languages = ["python"]
     header = ["language", "repo_id", "repo_name", "repo_owner_login", "size", "stargazers_count", "watchers_count"]
-    filter = "&sort=stars&order=desc&is:public&template:false&archived:false&pushed:>=2022-12-31"
+    # filter = "&sort=stars&order=desc&is:public&template:false&archived:false&pushed:>=2022-12-31"
+    filter = "&is:public&template:false&archived:false+pushed:>=2022-12-31&sort=stars&order=desc"
     # filter = "&sort=stars&order=desc"
     with open('repo_sample_large.csv', 'w', newline='') as f:
         writer = csv.writer(f)
@@ -1070,7 +1226,7 @@ def select_to_csv(logger):
                     row = f"Could not query repo {repo}"
                 writer.writerow(row)
             time.sleep(240)
-        
+
 
 def main():
     """
@@ -1079,13 +1235,22 @@ def main():
     print(datetime.now())
     logger = base.get_logger(__name__)
     logger.setLevel(logging.DEBUG)
-    repo_ids_path = "mdi_thesis/preselected_repos.txt"
-
+    # repo_ids_path = "mdi_thesis/preselected_repos.txt"
     # selected_repos.select_repos(repo_list=repo_ids)
     # obj = select_data(path=repo_ids_path)
-    # obj = select_data(repo_nr=1, order="desc")
+    # filter = "language:python&is:public&template:false&archived:false+pushed:>=2022-12-31&sort=stars&order=desc"
+    obj = select_data(repo_nr=1, query_parameters=filter)
     # print(elephant_factor(obj))
+    # print(technical_fork(obj))
+    base_data = obj.query_repository(["repository"],
+                                    filters={})
+    print(base_data)
 
+    # print(branch_lifecycle(obj))
+
+    # print(obj.get_branches())
+   #  print(base_data)
+    # obj.results_to_json()
     # print(obj)
     # print(maturity_level(obj))
     # print(osi_approved_license(obj))
@@ -1103,8 +1268,7 @@ def main():
     # print(number_of_support_contributors(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
     # print(size_of_community(obj))
-    select_to_csv(logger=logger)
-    
+    # select_to_csv(logger=logger)
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))
