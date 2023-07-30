@@ -230,8 +230,6 @@ def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
     for repo, data in contributors_data.items():
         # contributions_nr = 0
         contributors_nr = 0
-        print(repo)
-        print(len(data))
         if check_contrib:
             for user in data:
                 contributions = user.get("contributions")
@@ -260,3 +258,13 @@ def get_organizations(contributors_data, data_object):
                     distinct_organizations.add(org_name)
         repo_organizations[repo] = len(distinct_organizations)
     return repo_organizations
+
+
+def dict_to_json(json_object, file_name):
+    """
+    Helper function to write file.
+    :param json_object: Object to be written.
+    :param file_name: Filename for new file.
+    """
+    with open(file_name, "w") as outfile:
+        outfile.write(json_object)
