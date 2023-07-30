@@ -12,6 +12,7 @@
                 "updated_at",
                 "pushed_at",
                 "size",
+                "forks_count",
                 "stargazers_count",
                 "watchers_count",
                 "language",
@@ -19,7 +20,9 @@
                 "forks_count",
                 "license",
                 "open_issues",
-                "subscribers_count"
+                "subscribers_count",
+                "archived",
+                "visibility"  
             ]
         }
     ,
@@ -142,9 +145,15 @@
                 "forks_count",
                 "open_issues_count",
                 "is_template",
+                "has_issues",
                 "has_downloads",
                 "archived",
                 "disabled",
+                "visibility",
+                "created_at",
+                "updated_at",
+                "published_at",
+                "network_count",
                 "subscribers_count"]
         }
     ,
@@ -272,5 +281,21 @@
                 "documentation",
                 "files"
             ]
+        }
+        ,
+        "branches":
+        {
+            "request_url_1": "https://api.github.com/repositories/",
+            "request_url_2": "/branches",
+            "request_url_3": "",
+            "feature_list": [
+                "name",
+                "commit",
+                "protected" 
+            ],
+            "feature_key": "name",
+            "subfeature_list": [
+                "commit"
+                ]
         }
 }
