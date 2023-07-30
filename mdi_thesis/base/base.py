@@ -15,11 +15,14 @@ import base64
 import re
 import logging
 import math
+from pathlib import Path
+from datetime import date, datetime
+from dateutil import relativedelta
 from bs4 import BeautifulSoup
 import requests
 import mdi_thesis.constants as constants
 import mdi_thesis.base.utils as utils
-# import os
+import os
 
 
 # logger = logging.getLogger(__name__)
@@ -40,6 +43,17 @@ def get_logger(name: str) -> logging.Logger:
             '%(asctime)s - %(levelname)s - line: %(lineno)s - %(funcName)s - %(module)s - %(message)s')
         console.setFormatter(formatter)
         logger.setLevel(logging.DEBUG)
+        curr_path = Path(os.path.dirname(__file__))
+        log_path = curr_path.parents[1]
+        file_name = datetime.now().strftime('logger_%Y%m%d_%H_%M')
+        file_path = os.path.join("outputs/logs/", file_name)
+        fileHandler = logging.FileHandler("{0}/{1}.log".format(log_path, file_path))
+        fileHandler.setFormatter(formatter)
+        logger.addHandler(fileHandler)
+        # consoleHandler = logging.StreamHandler()
+        # consoleHandler.setFormatter(formatter)
+        # logger.addHandler(consoleHandler)
+
     return logger
 
 class Request:
@@ -76,6 +90,10 @@ class Request:
         """
         selected_repos = []
         results_items = []
+        if repo_nr < self.results_per_page:
+            res_per_page = repo_nr
+        else:
+            res_per_page = self.results_per_page
         if repo_list:
             for item in repo_list:
                 url = f"https://api.github.com/repositories/{item}"
@@ -98,43 +116,55 @@ class Request:
                 + self.token
                 + "&per_page="  
                 # + "?simple=yes&per_page="
-                + str(self.results_per_page)
+                + str(res_per_page)
             )
             initial_search_url = (
                 search_url
                 + "&page=1"
             )
             self.logger.debug("Initial search query: %s", initial_search_url)
-            page_counter = 2
-            query_success = False
+
             results = []
-            while len(self.selected_repos_dict) < repo_nr:
-                # while not query_success:
+            while len(selected_repos) < repo_nr:
                 try:
                     self.logger.info("Query page 1")
                     response = self.session.get(
                         initial_search_url, headers=self.headers, timeout=100)
                     results = response.json()
-                    
+                    # self.selected_repos_dict = utils.clean_results(selected_repos)
                     results_items = results["items"]
-                    if response.links.get('next'):
+                    if repo_nr <= 100:
+                        selected_repos.extend(results_items)
+                        break
+                    if response.links.get('next') and repo_nr > 100:
                         results = self.get_next_pages(response=response,
                                                       results=results_items)
-                    print(f"Len before cleaning: {len(self.selected_repos_dict)}")
-                    cleaned_results = utils.clean_results(results)
-                    self.selected_repos_dict.update(cleaned_results)
-                    print(f"Len after cleaning: {len(self.selected_repos_dict)}")
-                    # query_success = True
+                        selected_repos.extend(results)
+                    # cleaned_results = utils.clean_results(results)
+                    # self.selected_repos_dict.update(cleaned_results)
                 except KeyError as key_err:
                     self.logger.error("Key error: %s", key_err)
                     time.sleep(300)
                 else:
                     time.sleep(300)
+            
+            selected_repos = selected_repos[:repo_nr]
+            self.selected_repos_dict = utils.clean_results(selected_repos)
 
-                selected_repos = results_items[:repo_nr]
-
-        return selected_repos
-
+    def check_rate_limit(self, response):
+        # try:
+        unix_time_to_reset = response.headers.get(
+            "X-RateLimit-Reset")
+        datetime_to_reset = datetime.fromtimestamp(int(unix_time_to_reset))
+        time_till_rerun = datetime_to_reset - datetime.now()
+        minutes_till_rerun = math.ceil(
+            time_till_rerun.total_seconds() / 60)
+        self.logger.critical("API rate exceeded. Sleeping %s minutes.",
+                                minutes_till_rerun)
+        time.sleep(time_till_rerun.total_seconds())
+        #except AttributeError:
+            # raise AttributeError
+            
     def get_next_pages(self, response, results):
         """
         """
@@ -237,8 +267,9 @@ class Request:
             object_counter = 0
             for obj in objects:
                 object_counter += 1
-                self.logger.info(
-                    "Get object Nr. %s of %s", object_counter, len(objects))
+                if object_counter % 100 == 0:
+                    self.logger.info(
+                        "Get object Nr. %s of %s", object_counter, len(objects))
                 object_id = obj.get(object_key)
                 if object_id:
                     comment_dict = utils.get_subfeatures(
@@ -287,86 +318,102 @@ class Request:
             len(self.selected_repos_dict)
         )
         if repo_list:
-            repositories = repo_list
+            # repositories = repo_list
+            repositories = [repo for repo in repo_list if repo is not None]
         else:
             repositories = self.selected_repos_dict
+
         failed_repo_id = ""
-        repo_counter = 0
-        repo_test_list = []
-        print(f"Getting {len(repositories)} Repositories...")
+        # repo_test_list = []
+
         for repo_id in repositories:
-            if failed_repo_id:
-                repo_id = failed_repo_id
-            else:
-                repo_counter += 1
-                repo_test_list.append(repo_id)
-                # print(repo_counter)
-            self.logger.info("Getting repository %s", repo_id)
-            if request_url_2:
-                url_repo = str(request_url_1 + str(repo_id) + request_url_2)
-            else:
-                url_repo = str(request_url_1 + str(repo_id))
-            self.logger.info("Getting page 1")
-            start_url = (str(url_repo) +
-                         "?simple=yes&" +
-                         str(filter_str) +
-                         "per_page=" +
-                         str(self.results_per_page) +
-                         "&page=1"
-                         )
-            try:
-                response = self.session.get(
-                    start_url, headers=self.headers, timeout=100)
-                results = response.json()
-                if results:
-                    failed_repo_id = ""
+            complete_results = False
+            while not complete_results:
+                self.logger.info("Getting repository %s", repo_id)
+                if request_url_2:
+                    url_repo = str(request_url_1 + str(repo_id) + request_url_2)
                 else:
-                    print(f"Repo {repo_id} failed")
-                    failed_repo_id = repo_id
-                    continue
-                if "last" in response.links:
-                    nr_of_pages = (
-                        response.links.get("last").get("url").split("&page=", 1)[1]
-                    )
-                    if int(nr_of_pages) > 1:
-                        self.logger.info("Getting responses for all pages...")
-                        page_counter = 2
-                        while True:
-                        # for page in range(2, int(nr_of_pages) + 1):
+                    url_repo = str(request_url_1 + str(repo_id))
+                self.logger.info("Getting page 1")
+                start_url = (str(url_repo) +
+                            "?simple=yes&" +
+                            str(filter_str) +
+                            "per_page=" +
+                            str(self.results_per_page) +
+                            "&page=1"
+                            )
+                self.logger.info("Start URL: %s", start_url)
+                try:
+                    response = self.session.get(
+                        start_url, headers=self.headers, timeout=100)
+                    if response.status_code in [403, 429]:
+                        self.logger.critical("Status code: %s", response.status_code)
+                        self.check_rate_limit(response=response)
+                    elif response in [400, 401, 404, 406, 410]:
+                        self.logger.critical("Status code: %s", response.status_code)
+                        self.logger.error("Query for repo %s failed: %s",
+                                          repo_id, response)
+                        break
+                    elif response.status_code in [500, 502, 503, 504]:
+                        self.logger.critical("Status code: %s", response.status_code)
+                        self.logger.debug("Connection failed at repo %s:%s",
+                                          repo_id, response)
+                        raise ConnectionError
+                    if response.links.get("last"):
+                        nr_of_pages = (
+                            response.links.get(
+                                "last").get("url").split("&page=", 1)[1]
+                                )
+                    else:
+                        nr_of_pages = 1
+                    self.logger.info("Querying total pages: %s", nr_of_pages)
+                    results = response.json()
+                    if response.status_code == 200 and nr_of_pages == 1:
+                        complete_results = True
+                        continue
+
+                    if response.links.get('next'):
+                        # self.logger.info("Getting responses for all pages...")
+                        while response.links.get('next'):
+        #                    if int(nr_of_pages) > 1:
                             try:
-                                self.logger.info("Query page %s of %s",
-                                                 page_counter, nr_of_pages)
-                                url = (str(url_repo) +
-                                       "?simple=yes&" +
-                                       str(filter_str) +
-                                       "per_page=" +
-                                       str(self.results_per_page) +
-                                       "&page=" +
-                                       str(page_counter))
-                                res = self.session.get(
-                                    url, headers=self.headers, timeout=100)
-                                logging.info("Extending results...")
-                                if res:
-                                    page_counter += 1
-                                    failed_repo_id = ""
-                                    results.extend(res.json())
-                                    if page_counter > nr_of_pages:
-                                        break
-                                else:
-                                    failed_repo_id = repo_id
-                            except Exception as error:
-                                self.logger.error(
-                                    "Could not query page: %s\tRepo:%s\nError: %s",
-                                    page_counter, repo_id, error)
+                                self.logger.debug("Search query: %s",
+                                                  response.links.get(
+                                                    "next").get("url"))
+                                response = self.session.get(
+                                    response.links['next']['url'],
+                                    headers=self.headers)
+                                if response.status_code in [403, 429]:
+                                    self.check_rate_limit(response=response)
+                                elif response.status_code in [400, 401,
+                                                              404, 406, 410]:
+                                    self.logger.error(
+                                        "Query repo %s failed:%s",
+                                        repo_id, response)
+                                    break
+                                elif response.status_code in [500, 502,
+                                                              503, 504]:
+                                    self.logger.debug(
+                                        "Connection failed at repo %s:%s",
+                                        repo_id, response)
+                                    raise ConnectionError
+                                next_result = response.json()
+                                results.extend(next_result)
+                            except Exception:
+                                self.logger.error("Error at querying all pages...")
                                 time.sleep(300)
-            except Exception as repo_error:
-                self.logger.error(
-                    "Could not query Repo:%s\nError: %s",
-                    repo_id, repo_error)
-                print(f"Could not query results from Repo: {repo_id}")
-                print("Retry in 5 minutes.")
-                failed_repo_id = repo_id
-                time.sleep(300)
+                        complete_results = True
+                        continue
+
+                except Exception as repo_error:
+                    self.logger.error(
+                        "Could not query Repo:%s\nError: %s",
+                        repo_id, repo_error)
+                    self.logger.debug("Could not query results from Repo: %s \
+                                      ...Retry in 5 minutes.", repo_id)
+                    # failed_repo_id = repo_id
+                    complete_results = False
+                    time.sleep(300)
 
             self.logger.info("Finished getting responses for all queries.")
             element_list = []  # element_list type: List[Dict[str, Any]]
@@ -389,8 +436,7 @@ class Request:
                     element_dict[feature] = results.get(feature)
                 element_list = element_dict  # [element_dict]
             repository_dict[repo_id] = element_list
-        print(len(repo_test_list))
-        print(len(set(repo_test_list)))
+
         self.logger.info("Done getting repository data.")
         return repository_dict
 
@@ -454,9 +500,7 @@ class Request:
                                     dependents_elements = dependents.find_all("div", {"class": "Box-row d-flex flex-items-center", "data-test-id": "dg-repo-pkg-dependent"})
                                     if dependents_elements:
                                         for element in dependents_elements:
-                                            # print(element)
                                             cell = element.find("span", {"class": "f5 color-fg-muted"})
-                                            # print(test)
                                             try:
                                                 user = cell.find("a", {"data-hovercard-type": "user"}).text
                                             except AttributeError:
@@ -487,7 +531,6 @@ class Request:
                                         "visible_dependents": visible_dependents}
         return dependents_results
 
-
     def get_dependencies(self) -> Dict[int, int]:
         """
         NOTE: Dependency graph from GitHub is still in progress!
@@ -512,15 +555,13 @@ class Request:
                 dependencies_box = soup.find("div", {"id": "dependencies"})
                 dependencies = dependencies_box.find("div", {"class": "Box", "data-view-component": "true"})
                 if dependencies:
-                    print(repo)
                     for element in dependencies.find_all("li", {"class": "Box-row", "data-view-component": "true"}):
-                        # print(element)
                         try:
                             text = element.find("a", {"class": "h4 Link--primary no-underline"}).text.strip()
                         except AttributeError:
                             text = element.find("div", {"class": "d-flex flex-items-baseline"}).text.strip()
                         results.add(text)
-                else:
+                else: 
                     break
                 nextExists = False
                 try:
@@ -534,9 +575,68 @@ class Request:
                     time.sleep(2)
                     nextExists = True
             dependency_results[repo] = sorted(results)  # len(results)
-            # for element in results:
-            #    print(element["name"] + ", " + str(element["stars"]))
         return dependency_results
+    
+    def get_branches(self, activity: str = "all") -> Dict[int, Dict[str, str]]:
+            """
+            NOTE: Dependency graph from GitHub is still in progress!
+            Changes in near future can cause errors!
+            Get dependencies of a repository.
+            :return: Repository ids and the number of dependencies
+            """
+            branches_results = {}
+            for repo, data in self.selected_repos_dict.items():
+                repo_name = data.get("name")
+                repo_owner_login = data.get("owner").get("login")
+                self.logger.info("Getting repository %s", repo)
+                url_1 = "https://github.com/"
+                url_2 = "/branches"
+                url = (url_1 +
+                       str(repo_owner_login) +
+                       "/" +
+                       str(repo_name) +
+                       url_2 +
+                       ("/") +
+                       activity
+                       )
+                nextExists = True
+                result_cnt = 500000
+                results = {}
+                while nextExists and len(results) < result_cnt:
+                    response = self.session.get(url)
+                    soup = BeautifulSoup(response.content, "html.parser")
+                    all_branches = soup.find("div", {"data-target": "branch-filter.result"})
+                    if all_branches:
+                        for element in all_branches.find_all("li", {"class": "Box-row position-relative"}):
+                            branch_name = ""
+                            branch_status = ""
+                            element = element.find("branch-filter-item")
+                            try:
+                                branch_name = element.select('a[class*="branch-name"]')[0].text
+                                if element.select('span[class*="State State"]'):
+                                    branch_status = element.select('span[class*="State State"]')[0].text.strip()
+                                elif element.select('a[class*="btn "]'):
+                                    branch_status = element.select('a[class*="btn "]')[0].text.strip()
+                                else:
+                                    branch_status = ""
+                            except AttributeError:
+                                self.logger.error(AttributeError)
+                            results[branch_name] = branch_status
+                    else:
+                        break
+                    nextExists = False
+                    try:
+                        for u in soup.find(
+                            "div", {"class": "paginate-container"}).find_all('a'):
+                            if u.text == "Next":
+                                nextExists = True
+                                url = u["href"]
+                    except Exception as href_info:
+                        self.logger.info(href_info)
+                        time.sleep(2)
+                        nextExists = True
+                branches_results[repo] = results  # len(results)
+            return branches_results
 
     def get_context_information(self, main_feature: str,
                                 sub_feature: str, filters: Dict[str, Any]
@@ -635,6 +735,143 @@ class Request:
 
         return dependency_dict
 
+    def results_to_json(self):
+        """
+        Queries data from already selected repositories
+        and stores them in json files.
+        """
+        # Parameters
+        curr_path = Path(os.path.dirname(__file__))
+        data_path = os.path.join(curr_path.parents[1], "outputs/data/", )
+        today = date.today()
 
-#    def __del__(self):
-#       self.session.close()
+        # General base data
+        base_data = self.query_repository(["repository",
+                                           "contributors",
+                                           "release",
+                                           "community_health",
+                                           "advisories",
+                                           "forks"],
+                                            filters={})
+        self.logger.info("Finished querying base_data")
+        for feature, data in base_data.items():
+            json_object = json.dumps(data, indent=4)
+            file_name = os.path.join(data_path, (feature + ".json"))
+            utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written base_data to json.")
+
+        # Pull Requests
+        pulls_data = self.query_repository(["pull_requests",
+                                            "issue"],
+                                            filters={"state": "all"})  # Check state requirements for each metric
+        self.logger.info("Finished querying pulls data.")
+        for feature, data in pulls_data.items():
+            json_object = json.dumps(data, indent=4)
+            file_name = os.path.join(data_path, (feature + ".json"))
+            utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written pulls data to json.")
+
+        # Commits
+        filter_date = today - relativedelta.relativedelta(years=1)
+        filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        commits = self.query_repository(["commits"],
+                                        filters={"since": filter_date})  # Check time filters for each metric
+        self.logger.info("Finished querying commits data.")
+        for feature, data in commits.items():
+            json_object = json.dumps(data, indent=4)
+            file_name = os.path.join(data_path, (feature + ".json"))
+            utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written commit data to json.")
+
+        # Single commits
+        filter_date = date.today() - relativedelta.relativedelta(months=1)
+        filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        single_commits = self.get_single_object(
+            feature="commits",
+            filters={
+                "since": filter_date_str
+                }, output_format="dict")
+        self.logger.info("Finished querying commits for single_commits data.")
+        json_object = json.dumps(single_commits, indent=4)
+        file_name = os.path.join(data_path, "single_commits.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written single_commits data to json.")
+
+        # Issue comments
+        filter_date_issues = date.today() - relativedelta.relativedelta(months=6)
+        filter_date_issues = filter_date_issues.strftime('%Y-%m-%dT%H:%M:%SZ')
+        issue_comments = self.get_single_object(
+            feature="issue_comments",
+            filters={
+                "since": filter_date_issues,
+                "state": "all"
+                },
+                output_format="dict")
+        self.logger.info("Finished querying issue_comments data.")
+        json_object = json.dumps(issue_comments, indent=4)
+        file_name = os.path.join(data_path, "issue_comments.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written issue_comments data to json.")
+
+        # Dependencies Upstream
+        upstream_dependencies = self.get_dependencies()
+        self.logger.info("Finished querying upstream_dependencies data.")
+        json_object = json.dumps(upstream_dependencies, indent=4)
+        file_name = os.path.join(data_path, "upstream_dependencies.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written upstream_dependencies data to json.")
+
+        # Dependencies Downstream
+        downstream_dependencies = self.get_dependents(
+            dependents_details=False)
+        self.logger.info("Finished querying downstream_dependencies data.")
+        json_object = json.dumps(downstream_dependencies, indent=4)
+        file_name = os.path.join(data_path, "downstream_dependencies.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written downstream_dependencies data to json.")
+
+        # Stale branches
+        stale_branches = self.get_branches(activity="stale")
+        self.logger.info("Finished querying stale branches data.")
+        json_object = json.dumps(stale_branches, indent=4)
+        file_name = os.path.join(data_path, "stale_branches.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written stale_branches data to json.")
+
+        # Active branches
+        active_branches = self.get_branches(activity="active")
+        self.logger.info("Finished querying active branches data.")
+        json_object = json.dumps(active_branches, indent=4)
+        file_name = os.path.join(data_path, "active_branches.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written active_branches data to json.")
+
+        # Contributor's organizations
+        users = {}
+        for contributors in base_data.get("contributors").values():
+            user_contributions = {}
+            for user in contributors:
+                login = user.get("login")
+                contributions = user.get("contributions")
+                user_contributions[login] = contributions
+            contributor_list = list(user_contributions)
+            users = self.query_repository(["organization_users"],
+                                          repo_list=contributor_list,
+                                          filters={})
+        self.logger.info("Finished querying organization_users data.")
+        json_object = json.dumps(users.get("organization_users"), indent=4)
+        file_name = os.path.join(data_path, "organization_users.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written organization_users data to json.")
+
+        # Contributors
+        contributor_count = utils.get_contributors(base_data.get("contributors"),
+                                                   check_contrib=False)
+        self.logger.info("Finished querying contributors_count data.")
+        json_object = json.dumps(contributor_count, indent=4)
+        file_name = os.path.join(data_path, "contributor_count.json")
+        utils.dict_to_json(json_object=json_object, file_name=file_name)
+        self.logger.info("Written contributor_count data to json.")
+        
+    def __del__(self):
+        self.session.close()
