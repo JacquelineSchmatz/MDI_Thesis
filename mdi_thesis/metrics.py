@@ -1,18 +1,15 @@
 """
 Module for metric calculations.
 """
-import timeit
+from typing import Dict, Tuple, Union  # , List, Any
 import json
 import logging
 import collections
 import math
-import csv
 from datetime import date, datetime, timedelta
-import time
-import regex as re
-from typing import Dict, Tuple, Union  # , List, Any
-import numpy as np
 from dateutil import relativedelta
+import numpy as np
+import regex as re
 
 import mdi_thesis.base.base as base
 import mdi_thesis.base.utils as utils
@@ -25,28 +22,6 @@ import mdi_thesis.external as external
 # handler.setFormatter(formatter)
 # logger.addHandler(handler)
 # logger.setLevel(logging.DEBUG)
-
-
-def select_data(repo_nr: int = 0,
-                path: str = "",
-                query_parameters: str = ""
-                ):
-    """
-    :param path:
-    :return:
-    """
-    selected_repos = base.Request()
-    if path:
-        # Statement for selecting repositories according to list
-        repo_ids = utils.__get_ids_from_txt__(path=path)
-        selected_repos.select_repos(repo_list=repo_ids, repo_nr=repo_nr)
-    else:
-        # Statement for selecting number of queried repositories
-        selected_repos.select_repos(
-            repo_nr=repo_nr,
-            query_parameters=query_parameters,
-            repo_list=[])
-    return selected_repos
 
 
 def maturity_level(data_object) -> Dict[int, int]:
@@ -130,9 +105,11 @@ def technical_fork(data_object):
                     forks_not_contributed += 1
 
         contributed_ratio = (forks_contributed /
-                             (forks_contributed + forks_not_contributed))
+                             (forks_contributed + forks_not_contributed)
+                             ) * 100
         not_contributed_ratio = (forks_not_contributed /
-                                 (forks_contributed + forks_not_contributed))
+                                 (forks_contributed + forks_not_contributed)
+                                 ) * 100
 
         if created_at_times:
             # Sort the datetime list
@@ -239,7 +216,6 @@ def criticality_score(data_object, logger) -> Dict[int, float]:
 
         else:
             average_per_week = None
-            # commit_frequency[repo] = []
         scores_per_repo[repo].update({"commit_frequency": average_per_week})
 
     # recent_releases_count
@@ -287,7 +263,7 @@ def criticality_score(data_object, logger) -> Dict[int, float]:
         scores_per_repo[repo].update({"closed_issues_count": closed_issues,
                                       "updated_issues_count": updated_issues})
     # comment_frequency
-    # TODO: May check for created_at from single comments
+    # TODO: check for created_at from single comments
     # All comments from an issue within the since parameter are included now
     logger.info("Getting comment_frequency...")
     issue_comments = data_object.get_single_object(
@@ -338,7 +314,7 @@ def criticality_score(data_object, logger) -> Dict[int, float]:
             weight = weights.get(param_name).get("weight")
             res_1 = weight*res_fraction
             sum_alpha += res_1
-        res_2 = round((form_1*sum_alpha), 2)
+        res_2 = round((form_1*sum_alpha), 2) * 100
         criticality_score_per_repo[repo] = res_2
     return criticality_score_per_repo
 
@@ -386,15 +362,15 @@ def pull_requests(data_object) -> Dict[int, Dict[str, float]]:
                 state_closed += 1
         avg_date_diff = round(np.mean(date_diffs))
         if total_pulls > 0:
-            ratio_open = round((state_open / total_pulls), 2)
-            ratio_closed = round((state_closed / total_pulls), 2)
-            ratio_merged = round((pulls_merged / total_pulls), 2)
+            ratio_open = (state_open / total_pulls) * 100
+            ratio_closed = (state_closed / total_pulls) * 100
+            ratio_merged = (pulls_merged / total_pulls) * 100
         else:
             ratio_open = None
             ratio_closed = None
             ratio_merged = None
         pull_results[repo] = {"total_pulls": total_pulls,
-                              "avg_pull_closed_days": avg_date_diff,
+                              "avg_pull_closing_days": avg_date_diff,
                               "ratio_open_total": ratio_open,
                               "ratio_closed_total": ratio_closed,
                               "ratio_merged_total": ratio_merged}
@@ -406,7 +382,7 @@ def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
     """
     Calculates information about a projects velocity concerning
     issues and their resolving time. Issues also include pulls,
-    bc. all pulls are issues, but not issues are pulls
+    bc. all pulls are issues, but not all issues are pulls
     :param data_object: Request object, required to gather data
     of already selected repositories.
     :return: Values for each information including the
@@ -446,14 +422,16 @@ def project_velocity(data_object) -> Dict[int, Dict[str, float]]:
         no_pull_count = pull_issue_list.count(False)
         avg_date_diff = round(np.mean(date_diffs))
         if total_issues > 0:
-            ratio_open = round((open_issues / total_issues), 2)
-            ratio_closed = round((closed_issues / total_issues), 2)
-            ratio_pull_issue = round((pull_count / total_issues), 2)
+            ratio_open = (open_issues / total_issues) * 100
+            ratio_closed = (closed_issues / total_issues) * 100
+            ratio_pull_issue = (pull_count / total_issues) * 100
         else:
             ratio_open = None
             ratio_closed = None
             ratio_pull_issue = None
         velocity_results[repo] = {"total_issues": total_issues,
+                                  "closed_issues": closed_issues,
+                                  "open_issues": open_issues,
                                   "pull_count": pull_count,
                                   "no_pull_count": no_pull_count,
                                   "ratio_pull_issue": ratio_pull_issue,
@@ -498,7 +476,10 @@ def github_community_health_percentage(
                      license_bool, readme]
         true_count = info_list.count(True)
         false_count = info_list.count(False)
-        custom_health_percentage = (len(info_list)/sum(info_list))
+        custom_health_percentage = (
+            (len(info_list))
+            / sum(info_list)
+            )
         infos = {"community_health_score": score,
                  "custom_health_score": custom_health_percentage,
                  "true_count": true_count,
@@ -1195,38 +1176,6 @@ def branch_lifecycle(data_object):
                                 }
     return branch_results
 
-def select_to_csv(logger):
-    languages = ["python", "java", "php", "JavaScript", "cpp"]
-    # languages = ["python"]
-    header = ["language", "repo_id", "repo_name", "repo_owner_login", "size", "stargazers_count", "watchers_count"]
-    # filter = "&sort=stars&order=desc&is:public&template:false&archived:false&pushed:>=2022-12-31"
-    filter = "&is:public&template:false&archived:false+pushed:>=2022-12-31&sort=stars&order=desc"
-    # filter = "&sort=stars&order=desc"
-    with open('repo_sample_large.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        for lang in languages:
-            logger.debug(f"Getting language: {lang}")
-            logger.debug(f"Getting repos with language: {lang}")
-            query = "language:" + lang + filter
-            obj = select_data(query_parameters=query, repo_nr=1000)
-            print(f"Finished getting search results for language {lang}")
-            repos = obj.query_repository(["repository"], filters={})
-            for repo, data in repos.get("repository").items():
-                try:
-                    language = data.get("language")
-                    name = data.get("name")
-                    owner = data.get("owner").get("login")
-                    size = data.get("size")
-                    stargazers_count = data.get("stargazers_count")
-                    watchers_count = data.get("watchers_count")
-                    row = [language, repo, name, owner, size, stargazers_count, watchers_count]
-                except AttributeError:
-                    logger.debug(f"Could not query repo {repo}")
-                    row = f"Could not query repo {repo}"
-                writer.writerow(row)
-            time.sleep(240)
-
 
 def main():
     """
@@ -1239,18 +1188,28 @@ def main():
     # selected_repos.select_repos(repo_list=repo_ids)
     # obj = select_data(path=repo_ids_path)
     # filter = "language:python&is:public&template:false&archived:false+pushed:>=2022-12-31&sort=stars&order=desc"
-    obj = select_data(repo_nr=1, query_parameters=filter)
+    import os
+    from pathlib import Path
+    curr_path = Path(os.path.dirname(__file__))
+    path = os.path.join(curr_path.parents[0],
+                                    "outputs", "data","python_repository.json")
+    # search_to_json(logger=logger)
+    # test = utils.json_to_dict(path=path)
+    # print(len(test))
+
+    # obj.results_to_json()
+    # obj = select_data(repo_nr=10, query_parameters=filter)
     # print(elephant_factor(obj))
     # print(technical_fork(obj))
-    base_data = obj.query_repository(["repository"],
-                                    filters={})
-    print(base_data)
+    # base_data = obj.query_repository(["repository"],
+    #                                 filters={})
+    # print(base_data)
 
     # print(branch_lifecycle(obj))
 
     # print(obj.get_branches())
    #  print(base_data)
-    # obj.results_to_json()
+    
     # print(obj)
     # print(maturity_level(obj))
     # print(osi_approved_license(obj))
@@ -1268,7 +1227,6 @@ def main():
     # print(number_of_support_contributors(obj))
     # TODO: Update dependents of criticality score (distinct values, source not content)
     # print(size_of_community(obj))
-    # select_to_csv(logger=logger)
 
     # print(selected_repos.get_single_object(feature="commits"))
     # print(selected_repos.query_repository(["advisories"]))

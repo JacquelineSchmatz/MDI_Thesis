@@ -3,9 +3,11 @@ Module for functions required to gather information
 from the GitHub API
 """
 import logging
+import json
+import os
+from typing import Dict, List, Any
 from datetime import date, datetime
 from dateutil import relativedelta
-from typing import Dict, List, Any
 import requests
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ def clean_results(
     results: List[Any],
 ) -> Dict[int, Dict[str, Any]]:
     """
+    Removes unwanted information from the queried repository data.
     :param results: Results to be clean in dictionary form
     :param key_list: List of keys to be taken
     :returns: dictionary with clean lists
@@ -36,9 +39,6 @@ def clean_results(
             repo_id = item["id"]
             repo_name = item["name"]
             repo_owner = item["owner"]
-            # if repo_id in dictionary_of_list:
-                # print(f"Duplicate repo: {repo_id} at row {item_counter}, {repo_name}, {repo_owner}")
-                # print(f"First occurence of repo: {repo_id} at row {test_dict.get(repo_id)}")
             selected_items = {k: v for k, v in item.items() if k in key_list}
             test_dict[repo_id] = [item_counter, repo_name, repo_owner]
             dictionary_of_list[repo_id] = selected_items
@@ -111,32 +111,11 @@ def get_subfeatures(
     return subfeature_dict
 
 
-def get_dependency_diff(commits):
-    """
-    TODO: Note from the documentation conc. BASEHEAD:
-    "The base and head Git revisions to compare.
-    ...
-    This parameter expects the format {base}...{head}."
-
-    :param commits: refers to the head parameter.
-    :return:
-    """
-    request_url_1 = "https://api.github.com/repositories/"
-    request_url_2 = "/dependency-graph/compare/BASEHEAD"
-    feature_list = [
-        "change_type",
-        "ecosystem",
-        "name",
-        "license",
-        "vulnerabilities",
-    ]
-    return request_url_1, request_url_2, feature_list
-
-
 def get_repo_age_score(repo_data) -> Dict[int, int]:
     """
-    :param repo_data:
-    :return:
+    Calculate age score for each repository.
+    :param repo_data: Repository data with age information
+    :return: Age score for each repository
     """
     today = date.today()
     age_score = {}
@@ -170,8 +149,9 @@ def get_repo_age_score(repo_data) -> Dict[int, int]:
 
 def get_repo_issue_score(repo_data) -> Dict[int, int]:
     """
-    :param repo_data:
-    :return:
+    Calculates issue scores.
+    :param repo_data: Repository data to get issues
+    :return: Issue scores for each repository
     """
     issue_score = {}
     score = 0
@@ -194,8 +174,9 @@ def get_repo_issue_score(repo_data) -> Dict[int, int]:
 
 def get_repo_release_score(repo_data) -> Dict[int, int]:
     """
+    Get release score for each repository.
     :param repo_data:
-    :return:
+    :return: release score for each repository
     """
     today = date.today()
     release_score = {}
@@ -228,7 +209,6 @@ def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
     """
     repo_contributors = {}
     for repo, data in contributors_data.items():
-        # contributions_nr = 0
         contributors_nr = 0
         if check_contrib:
             for user in data:
@@ -237,11 +217,17 @@ def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
                     contributors_nr += 1
         else:
             contributors_nr = len(data)
-                # contributions_nr += contributions
         repo_contributors[repo] = contributors_nr
     return repo_contributors
 
+
 def get_organizations(contributors_data, data_object):
+    """
+    Get organizations contributor of a project belong to.
+    :param contributors_data: data with contributors
+    :param data_object: data object
+    :return: Number of organizations per repository
+    """
     repo_organizations = {}
     for repo, contributors in contributors_data.items():
         contrib_list = []
@@ -260,11 +246,25 @@ def get_organizations(contributors_data, data_object):
     return repo_organizations
 
 
-def dict_to_json(json_object, file_name):
+def dict_to_json(data:Dict, data_path:str, feature:str):
     """
     Helper function to write file.
-    :param json_object: Object to be written.
-    :param file_name: Filename for new file.
+    :param data: data to be written
+    :param data_path: Path where file should be written.
+    :param feature: Feature for filename.
     """
+    json_object = json.dumps(data, indent=4)
+    file_name = os.path.join(data_path, (feature + ".json"))
     with open(file_name, "w") as outfile:
         outfile.write(json_object)
+
+
+def json_to_dict(path: str) -> Dict:
+    """
+    Helper function
+    :param path: Path to json file
+    :return: dictionary with json content
+    """
+    with open(path) as json_file:
+        data = json.load(json_file)
+    return data
