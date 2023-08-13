@@ -15,31 +15,68 @@ import mdi_thesis.base.base as base
 import mdi_thesis.base.utils as utils
 import mdi_thesis.external as external
 
-# logger = logging.getLogger(__name__)
-# handler = logging.StreamHandler()
-# formatter = logging.Formatter(
-#     "%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
-# handler.setFormatter(formatter)
-# logger.addHandler(handler)
-# logger.setLevel(logging.DEBUG)
 
-
-def maturity_level(data_object) -> Dict[int, int]:
+def maturity_level(data_sets, filter_date) -> Dict[int, int]:
     """
     :param data_object: Request object, required to gather data
     of already selected repositories.
     :return: Repositories with corresponding results.
     """
     base_data = data_object.query_repository(["repository"], filters={})
-    today = date.today()
+    # today = date.today()
     repo_data = base_data.get("repository")
-    age_score = utils.get_repo_age_score(repo_data=repo_data)
-    filter_issues = today - relativedelta.relativedelta(months=6)
+    # age_score = utils.get_repo_age_score(repo_data=repo_data)
+    age_score = {}
+    for repo, data in repo_data.items():
+        created_at = data[0].get("created_at")
+        created_at = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%SZ')
+        # updated_at = data[0].get("updated_at")
+        dates = relativedelta.relativedelta(filter_date, created_at)
+        years = dates.years
+        months = dates.months
+        score = 0
+        # Age > 3 years
+        if (years == 3 and months > 0) or (years > 3):
+            score = 5
+        # Age > 2-3 years
+        elif (years == 2 and months > 0) or (years == 3 and months == 0):
+            score = 4
+        # Age > 1-2 years
+        elif (years == 2 and months == 0) or (years == 1 and months > 0):
+            score = 3
+        # Age 2-12 months
+        elif (years == 1 and months == 0) or (years == 0 and months >= 2):
+            score = 2
+        # Age < 2 months
+        elif years == 0 and months < 2:
+            score = 1
+        score = score/5
+        age_score[repo] = score
+
+    filter_issues = filter_date - relativedelta.relativedelta(months=6)
     filter_issues = filter_issues.strftime('%Y-%m-%dT%H:%M:%SZ')
     filter_issues = {"since": filter_issues}
+
     issue_data = data_object.query_repository(["issue"], filters=filter_issues)
-    issue_score = utils.get_repo_issue_score(issue_data)
-    filter_release = today - relativedelta.relativedelta(months=12)
+    # issue_score = utils.get_repo_issue_score(issue_data)
+    issue_score = {}
+    score = 0
+    for rep, data in issue_data.get("issue").items():
+        nr_of_issues = len(data)
+        if nr_of_issues > 1000:
+            score = 1
+        elif nr_of_issues > 500 and nr_of_issues < 1000:
+            score = 2
+        elif nr_of_issues > 100 and nr_of_issues <= 500:
+            score = 3
+        elif nr_of_issues > 50 and nr_of_issues <= 100:
+            score = 4
+        elif nr_of_issues <= 50:
+            score = 5
+        score = score/5
+        issue_score[rep] = score
+
+    filter_release = filter_date - relativedelta.relativedelta(months=12)
     filter_release = filter_release.strftime('%Y-%m-%dT%H:%M:%SZ')
     filter_release = {"since": filter_release}
     release_data = data_object.query_repository(
@@ -264,6 +301,8 @@ def criticality_score(data_object, logger) -> Dict[int, float]:
                                       "updated_issues_count": updated_issues})
     # comment_frequency
     # TODO: check for created_at from single comments
+    # TODO: Check ids of comments, since comments by github actions are listed 
+    # with id = null/None
     # All comments from an issue within the since parameter are included now
     logger.info("Getting comment_frequency...")
     issue_comments = data_object.get_single_object(
@@ -277,8 +316,12 @@ def criticality_score(data_object, logger) -> Dict[int, float]:
         comment_count_list = []
         for issue in data:
             for comments in issue.values():
-                comment_count = len(comments)
-                comment_count_list.append(comment_count)
+                comment_len = 0
+                for comment in comments:
+                    if comment.get("id"):
+                        comment_len += 1
+                # comment_count = len(comments)
+                comment_count_list.append(comment_len)
         if comment_count_list:
             avg_comment_count = round(np.mean(comment_count_list), 0)
         else:
@@ -479,7 +522,7 @@ def github_community_health_percentage(
         custom_health_percentage = (
             (len(info_list))
             / sum(info_list)
-            )
+            ) * 100
         infos = {"community_health_score": score,
                  "custom_health_score": custom_health_percentage,
                  "true_count": true_count,
@@ -504,8 +547,8 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
     :return: Selected information about a repositories issue activities
     """
     issues_infos = {}
-    filter_date_issues = date.today() - relativedelta.relativedelta(days=90)
-    filter_date_issues = filter_date_issues.strftime('%Y-%m-%dT%H:%M:%SZ')
+    filter_datetime_issues = date.today() - relativedelta.relativedelta(days=90)
+    filter_date_issues = filter_datetime_issues.strftime('%Y-%m-%dT%H:%M:%SZ')
     all_issues = data_object.query_repository(
         ["issue"],
         filters={"since": filter_date_issues,
@@ -525,6 +568,7 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
         issue_close_times = []
         issue_first_response_times = []
         issue_creation_times = []
+        issues_created_since = []
         comment_count_list = []
         for issue in data:
             pull_request_id = issue.get("pull_request")
@@ -535,9 +579,13 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
                 issue_created_at = issue.get("created_at")
                 issue_created_at = datetime.strptime(issue_created_at,
                                                      '%Y-%m-%dT%H:%M:%SZ')
+                if issue_created_at >= filter_datetime_issues:
+                    issues_created_since.append(issue_created_at)
                 issue_creation_times.append(issue_created_at)
                 issue_number = issue.get("number")
                 try:
+                    # TODO Check if issue comments are only counted if comments are available
+                    # If so, update formula in thesis
                     total_comments = len(issue_comments.get(
                         repo).get(issue_number))
                     comment_count_list.append(total_comments)
@@ -583,7 +631,10 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
             average_per_week = round(np.mean(elements_per_week))  # sum(elements_per_week) / num_weeks
         else:
             average_per_week = None
-
+        if issues_created_since:
+            new_ratio = (len(issues_created_since) / total_issues) * 100
+        else:
+            new_ratio = None
         if issue_close_times:
             avg_date_diff = round(np.mean(issue_close_times))
         else:
@@ -598,14 +649,16 @@ def issues(data_object) -> Dict[int, Dict[str, float]]:
         else:
             avg_issue_comments = None
         if total_issues:
-            ratio_open = round((open_issues / total_issues), 2)
-            ratio_closed = round((closed_issues / total_issues), 2)
+            ratio_open = (open_issues / total_issues) * 100
+            ratio_closed = (closed_issues / total_issues) * 100
         else:
             ratio_open = None
             ratio_closed = None
         issues_infos[repo] = {"total_issues": total_issues,
                               "open_issues": open_issues,
                               "closed_issues": closed_issues,
+                              "new_issues": len(issues_created_since),
+                              "new_ratio": new_ratio,
                               "average_issues_created_per_week":
                               average_per_week,
                               "average_issue_comments": avg_issue_comments,
@@ -623,10 +676,7 @@ def support_rate(data_object) -> Dict[int, float]:
     The support rate uses issues and pulls which received a response
     in the last 6 months. Pulls are excluded from the issues
     (bc. pulls are also included in queried issues data).
-    Pulls are filtered seperately, since the time filter
-    recognizes merges too,
-    yet this metric focuses only on comments as responses.
-    param data_object: Request object, required to gather data
+    :param data_object: Request object, required to gather data
     of already selected repositories.
     :param data_object: Request object, required to gather data
     of already selected repositories.
@@ -683,7 +733,7 @@ def support_rate(data_object) -> Dict[int, float]:
         else:
             pulls_support = 0
         support_rate_val = ((issue_support + pulls_support)/2)*100
-        support_rate_results[repo] = round(support_rate_val, 2)
+        support_rate_results[repo] = support_rate_val
 
     return support_rate_results
 
@@ -785,7 +835,7 @@ def security_advisories(data_object) -> \
                                         severity_critical_count)
         if severities:
             ratio_severity_high_crit = (severity_high_critical_total /
-                                        len(severities))
+                                        len(severities)) * 100
         else:
             ratio_severity_high_crit = None
         if cvss_scores:
@@ -794,13 +844,13 @@ def security_advisories(data_object) -> \
             mean_cvs_score = None
         total_vuln = vuln_patched + vuln_not_patched
         if total_vuln > 0:
-            patch_ratio = vuln_patched / total_vuln
+            patch_ratio = (vuln_patched / total_vuln) * 100
         else:
             patch_ratio = None
         scores = {"advisories_available": advisories_available,
                   "patch_ratio": patch_ratio,
                   "closed_advisories": closed_adv,
-                  "mean_cvss_score": mean_cvs_score,
+                  "average_cvss_score": mean_cvs_score,
                   "ratio_severity_high_crit":
                   ratio_severity_high_crit}
 
@@ -818,11 +868,64 @@ def contributions_distributions(data_object) -> Dict[int, Dict[str, Union[int, f
     contributors by calculating the bus factor and the pareto principle
     for each repository.
     """
+    repo_pareto = {}
     filter_date = date.today() - relativedelta.relativedelta(years=1)  # years = 1
     filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
     commits = data_object.query_repository(["commits"],
                                            filters={"since": filter_date})
-    repo_pareto = {}
+    
+    single_commits = {} # Placeholder
+    for repo, commit in single_commits.items():
+        rof_per_contributor = []
+        file_committer = utils.get_contributor_per_files(commit)
+
+        if file_committer:
+            num_contributors_per_files = []
+            for committer_ids in file_committer.values():
+                num_contributors_per_files.append(len(committer_ids))
+            avg_num_contributors_per_file = np.mean(
+                num_contributors_per_files)
+        else:
+            avg_num_contributors_per_file = None
+
+        total_files = len(file_committer)
+        committer_per_file = utils.invert_dict(file_committer)
+        for contributor, files in committer_per_file.items():
+            ratio_of_files = (len(files)) / total_files
+            rof_per_contributor.append(ratio_of_files)
+
+        # file_committer_counter = collections.Counter(rof_per_contributor).values()
+        rof_per_contributor_sorted = sorted(rof_per_contributor, reverse=True)
+        total_file_contributions = sum(rof_per_contributor_sorted)
+        total_file_contributer = len(rof_per_contributor_sorted)
+        twenty_percent = total_file_contributer * 0.2
+        eighty_percent = total_file_contributions * 0.8
+
+        running_contributions = 0
+        pareto_ist = 0
+        prot_diff = 0
+        for contrib, contributions in enumerate(rof_per_contributor_sorted,
+                                                start=1):
+            running_contributions += contributions
+            if contrib == twenty_percent:
+                pareto_ist = running_contributions
+                pareto_ist_percentage = pareto_ist / total_file_contributions
+                prot_diff = np.absolute((0.8)-pareto_ist_percentage)  * 100
+        # prot_diff = np.absolute((eighty_percent - pareto_ist)) / (
+        #     (eighty_percent + pareto_ist) / 2) * 100 # TODO Check if *100 is correct
+        pareto_results = {
+                    "RoC_twenty_percent":
+                    twenty_percent,
+                    "RoC_eighty_percent_soll":
+                    eighty_percent,
+                    "RoC_eighty_percent_ist":
+                    pareto_ist,
+                    "RoC_diff_pareto_soll_ist_percent":
+                    prot_diff,
+                    "avg_num_contributors_per_file":
+                    avg_num_contributors_per_file}
+        repo_pareto[repo] = pareto_results
+
     for repo, commits in commits.get("commits").items():
         total_committer = []
         no_committer = 0
@@ -841,7 +944,6 @@ def contributions_distributions(data_object) -> Dict[int, Dict[str, Union[int, f
                     contributor = author_email
                 else:
                     contributor = committer_email
-
             except AttributeError:
                 no_committer += 1
             total_committer.append(contributor)
@@ -853,36 +955,42 @@ def contributions_distributions(data_object) -> Dict[int, Dict[str, Union[int, f
 
         total_contributions = sum(commits_sorted)
         total_contributer = len(commits_sorted)
-        # Round up since no half contributors exist
-        twenty_percent = math.ceil(total_contributer * 0.2)
-        eighty_percent = math.ceil(total_contributions * 0.8)
+        twenty_percent = total_contributer * 0.2
+        eighty_percent = total_contributions * 0.8
         running_contributions = 0
         pareto_ist = 0
+        prot_diff = 0
         for contrib, contributions in enumerate(commits_sorted, start=1):
             running_contributions += contributions
             if contrib == twenty_percent:
                 # twenty_per_contributions = contrib
                 pareto_ist = running_contributions
+                pareto_ist_percentage = pareto_ist / total_contributions
+                prot_diff = np.absolute((0.8)-pareto_ist_percentage) * 100
             if t_2 <= t_1:
                 t_2 += contributions
                 bus_factor_score += 1
-        prot_diff = np.round(np.absolute((eighty_percent - pareto_ist)) / (
-            (eighty_percent + pareto_ist) / 2), 2)
+        # prot_diff = np.absolute((eighty_percent - pareto_ist)) / (
+        #     (eighty_percent + pareto_ist) / 2) * 100 # TODO Check if *100 is correct
+
         pareto_results = {"bus_factor_score": bus_factor_score,
-                          "twenty_percent_contributor":
+                          "NoC_twenty_percent":
                           twenty_percent,
-                          "eighty_percent_contributions_soll":
+                          "NoC_eighty_percent_soll":
                           eighty_percent,
-                          "eighty_percent_contributions_ist":
+                          "NoC_eighty_percent_ist":
                           pareto_ist,
-                          "diff_pareto_soll_ist_percent":
+                          "NoC_diff_pareto_soll_ist_percent":
                           prot_diff}
-        repo_pareto[repo] = pareto_results
+        repo_pareto[repo].update(pareto_results)
     return repo_pareto
+
+
 
 
 def contributors_per_file(data_object) -> Dict[int, float]:
     """
+    NOTE: MOVED TO CONTRIBUTORS_DISTRIBUTIONS!
     Iterates through commits and gets the committer and the
     trees (subdirectories) which lead to files recursevly,
     until the edited file is found to get all committers
@@ -891,44 +999,46 @@ def contributors_per_file(data_object) -> Dict[int, float]:
     of already selected repositories.
     :return: Average number of contributors per each file
     """
-    filter_date = date.today() - relativedelta.relativedelta(months=1)
-    filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-    results_dict = {}
-    single_commits = data_object.get_single_object(
-        feature="commits",
-        filters={
-            "since": filter_date_str
-            }, output_format="dict")
-    for repo, commit in single_commits.items():
-        file_committer = {}
-        for features in commit.values():
-            for row in features:
-                files = row.get("files")
-                committer = row.get("commit").get("committer").get("email")
-                author = row.get("commit").get("author").get("email")
-                verification = row.get("commit").get(
-                    "verification").get("verified")
-                if verification:
-                    contributor = author
-                else:
-                    contributor = committer
-                for file in files:
-                    filename = file.get("filename")
-                    if filename not in file_committer:
-                        file_committer[filename] = {contributor}
-                    else:
-                        file_committer[filename].add(contributor)
-
-        if file_committer:
-            num_contributors_per_files = []
-            for committer_ids in file_committer.values():
-                num_contributors_per_files.append(len(committer_ids))
-            avg_num_contributors_per_file = np.ceil(
-                np.mean(num_contributors_per_files))
-        else:
-            avg_num_contributors_per_file = None
-        results_dict[repo] = avg_num_contributors_per_file
-    return results_dict
+    pass
+    # filter_date = date.today() - relativedelta.relativedelta(months=1)
+    # filter_date_str = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # results_dict = {}
+    # single_commits = data_object.get_single_object(
+    #     feature="commits",
+    #     filters={
+    #         "since": filter_date_str
+    #         }, output_format="dict")
+    # for repo, commit in single_commits.items():
+    #     file_committer = utils.get_contributor_per_files(commit)
+        # file_committer = {}
+        # for features in commit.values():
+        #     for row in features:
+        #         files = row.get("files")
+        #         committer = row.get("commit").get("committer").get("email")
+        #         author = row.get("commit").get("author").get("email")
+        #         verification = row.get("commit").get(
+        #             "verification").get("verified")
+        #         if verification:
+        #             contributor = author
+        #         else:
+        #             contributor = committer
+        #         for file in files:
+        #             filename = file.get("filename")
+        #             if filename not in file_committer:
+        #                 file_committer[filename] = {contributor}
+        #             else:
+        #                 file_committer[filename].add(contributor)
+    
+    #     if file_committer:
+    #         num_contributors_per_files = []
+    #         for committer_ids in file_committer.values():
+    #             num_contributors_per_files.append(len(committer_ids))
+    #         avg_num_contributors_per_file = np.ceil(
+    #             np.mean(num_contributors_per_files))
+    #     else:
+    #         avg_num_contributors_per_file = None
+    #     results_dict[repo] = avg_num_contributors_per_file
+    # return results_dict
 
 
 def number_of_support_contributors(data_object) -> Dict[int, int]:
@@ -1075,8 +1185,8 @@ def churn(data_object) -> Dict[int, float]:
                 deletions = stats.get("deletions")
                 lines_added += additions
                 lines_deleted += deletions
-        churn_score = lines_deleted / lines_added
-        results_dict[repo] = round(churn_score, 2)
+        churn_score = (lines_deleted / lines_added) * 100
+        results_dict[repo] = churn_score
     return results_dict
      
 def branch_lifecycle(data_object):
@@ -1099,15 +1209,7 @@ def branch_lifecycle(data_object):
     branch_results = {}
     for repo, branches in branches.items():
         dates = []
-        for branch, elements in branches.items():
-            elem = elements[0]
-            if branch != "master":
-                # committer = elem.get("commit").get("commit").get("author").get("email")
-                commit_date = elem.get("commit").get("commit").get("author").get("date")
-                commit_date = datetime.strptime(commit_date,
-                                                '%Y-%m-%dT%H:%M:%SZ')
-                dates.append(commit_date)
-
+        open_dates = []
         total_stale = len(stale_branch_states.get(repo))
         total_active = len(active_branch_states.get(repo))
         all_branches = {}
@@ -1116,32 +1218,42 @@ def branch_lifecycle(data_object):
         total_branches = len(all_branches)
         branch_state_counter = collections.Counter(
             all_branches.values())
+        for branch, elements in branches.items():
+            elem = elements[0]
+            if branch != "master":
+                # committer = elem.get("commit").get("commit").get("author").get("email")
+                commit_date = elem.get("commit").get("commit").get("author").get("date")
+                commit_date = datetime.strptime(commit_date,
+                                                '%Y-%m-%dT%H:%M:%SZ')
+                dates.append(commit_date)
+                branch_state = all_branches.get(branch)
+                if branch_state not in ["Closed", "Merged"]:
+                    open_dates.append(commit_date)
 
         if total_branches > 0:
             stale_ratio = (total_stale / total_branches) * 100
             active_ratio = (total_active / total_branches) * 100
             total_merged = branch_state_counter["Merged"]
-            merged_ratio = (total_merged / total_branches) * 100
             total_compare = branch_state_counter["Compare"]
-            compare_ratio = (total_compare / total_branches) * 100
             total_open = branch_state_counter["Open"]
-            open_ratio = (total_open / total_branches) * 100
             total_closed = branch_state_counter["Closed"]
-            closed_ratio = (total_closed / total_branches) * 100
+
+            unresolved_total = total_open + total_compare
+            resolved_total = total_closed + total_merged
+            unresolved_ratio = (unresolved_total / total_branches) * 100
+            resolved_ratio = (resolved_total / total_branches) * 100
         else:
             stale_ratio = None
             active_ratio = None
-            merged_ratio = None
-            compare_ratio = None
-            open_ratio = None
-            closed_ratio = None
+            unresolved_ratio = None
+            resolved_ratio = None
 
         # Calculating time metrics
         dates.sort()
         total_dates = len(dates)
         time_difference = timedelta(0)
         time_diff_till_today = timedelta(0)
-        for d in dates:
+        for d in open_dates:
             time_diff_till_today += today - d
         for i in range(1, len(dates), 1):
             time_difference += dates[i] - dates[i-1]
@@ -1149,7 +1261,7 @@ def branch_lifecycle(data_object):
         # Time frequencies are only considered to be valid
         # when at least 2 values exist
         if total_dates > 1:
-            branch_avg_age = (time_diff_till_today / total_dates).days
+            branch_avg_age = (time_diff_till_today / len(open_dates)).days
             branch_creation_frequency = (time_difference / total_dates).days
         else:
             branch_avg_age = None
@@ -1163,14 +1275,10 @@ def branch_lifecycle(data_object):
                                 stale_ratio,
                                 "active_ratio":
                                 active_ratio,
-                                "merged_ratio":
-                                merged_ratio,
-                                "compare_ratio":
-                                compare_ratio,
-                                "open_ratio":
-                                open_ratio,
-                                "closed_ratio":
-                                closed_ratio,
+                                "unresolved_ratio":
+                                unresolved_ratio,
+                                "resolved_ratio":
+                                resolved_ratio,
                                 "branch_state_counter":
                                 branch_state_counter
                                 }
