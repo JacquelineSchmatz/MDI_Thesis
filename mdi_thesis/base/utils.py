@@ -5,6 +5,7 @@ from the GitHub API
 import logging
 import json
 import os
+import re
 from typing import Dict, List, Any
 from datetime import date, datetime
 from dateutil import relativedelta
@@ -19,6 +20,18 @@ def __get_ids_from_txt__(path: str) -> List[int]:
         ids = [int(i) for i in lines]
         return ids
 
+def invert_dict(dictionary): 
+    inverse = dict() 
+    for key in dictionary: 
+        # Go through the list that is saved in the dict:
+        for item in dictionary[key]:
+            # Check if in the inverted dict the key exists
+            if item not in inverse: 
+                # If not create a new list
+                inverse[item] = [key] 
+            else: 
+                inverse[item].append(key) 
+    return inverse
 
 def clean_results(
     results: List[Any],
@@ -54,6 +67,7 @@ def get_subfeatures(
     object_id: int,
     object_url: str,
     sub_url: str,
+    logger
 ) -> Dict[int, List[Dict[str, Any]]]:
     """
     :param session: Active request session
@@ -86,10 +100,12 @@ def get_subfeatures(
                     logger.info("Query page %s of %s", page, nr_of_pages)
                     logging.info("Extending results...")
                     try:
-                        results.extend(res.json())
+                        # TODO Check dict object has no attribute extend error
+                        next_result = res.json()
+                        results.extend(next_result)
                     except Exception as error:
                         logger.error("Could not extend: %s...\nError: %s",
-                                     res.json(), error)
+                                    next_result, error)
         else:
             results = {}
     element_dict = {}  # type: dict[str, Any]
@@ -245,8 +261,52 @@ def get_organizations(contributors_data, data_object):
         repo_organizations[repo] = len(distinct_organizations)
     return repo_organizations
 
+def get_contributor_per_files(commit):
+    """
+    """
 
-def dict_to_json(data:Dict, data_path:str, feature:str):
+    file_committer = {}
+    for features in commit.values():
+        for row in features:
+            files = row.get("files")
+            try:
+                co_authors = set()
+                committer_email = row.get("commit").get("committer").get("email")
+                author_email = row.get("commit").get("author").get("email")
+                message = row.get("commit").get("message")
+                co_author_line = re.findall(r"Co-authored-by:(.*?)>", message)
+                verification = row.get("commit").get(
+                    "verification").get("verified")
+                for value in co_author_line:
+                    co_author = value.split("<")[-1]
+                    co_authors.add(co_author)
+                    # ntotal_committer.append(co_author)
+                if committer_email != author_email:
+                    contributor = author_email
+                else:
+                    if verification:
+                        contributor = author_email
+                    else:
+                        contributor = committer_email
+            except AttributeError as atterr:
+                logger.error("Attribute error: %s", atterr)
+                raise
+            if co_authors:
+                contributors = set(contributor) | co_authors
+            else:
+                contributors = contributor
+            for file in files:
+                filename = file.get("filename")
+
+                if filename not in file_committer:
+                    file_committer[filename] = contributors
+                else:
+                    file_committer[filename].update(contributors)
+
+    return file_committer
+
+
+def dict_to_json(data: Dict, data_path: str, feature: str):
     """
     Helper function to write file.
     :param data: data to be written
@@ -268,3 +328,6 @@ def json_to_dict(path: str) -> Dict:
     with open(path) as json_file:
         data = json.load(json_file)
     return data
+
+
+

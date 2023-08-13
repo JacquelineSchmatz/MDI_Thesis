@@ -66,6 +66,23 @@
             ]
         }
     ,
+    "pull_requests":
+        {
+            "request_url_1": "https://api.github.com/repositories/",
+            "request_url_2": "/pulls",
+            "request_url_3": "",
+            "feature_list": [
+                "id",
+                "number",
+                "state",
+                "created_at",
+                "updated_at",
+                "closed_at",
+                "pushed_at",
+                "merged_at"
+            ]
+        }
+    ,
     "pull_comments":
     {
         "request_url_1": "https://api.github.com/repositories/",
@@ -96,23 +113,6 @@
             ]
         }
     ,
-    "topics":
-        {
-            "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/topics",
-            "request_url_3": "",
-            "feature_list": [
-                "topics"
-            ]
-        }
-    ,
-    "dependencies_alt":
-        {
-            "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/contents/requirements.txt",
-            "request_url_3": "/contents/setup.py"
-        }
-    ,
     "dependents":
         {
             "request_url_1": "https://github.com/",
@@ -124,7 +124,13 @@
         "request_url_1": "https://github.com/",
         "request_url_2": "/network/dependencies"
     }
-,
+    ,
+    "branches_web":
+    {
+        "request_url_1": "https://github.com/",
+        "request_url_2": "/branches"
+    }
+    ,
     "license":
         {
             "request_url_1": "https://api.github.com/repositories/",
@@ -156,23 +162,7 @@
                 "network_count",
                 "subscribers_count"]
         }
-    ,
-    "pull_requests":
-        {
-            "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/pulls",
-            "request_url_3": "",
-            "feature_list": [
-                "id",
-                "number",
-                "state",
-                "created_at",
-                "updated_at",
-                "closed_at",
-                "pushed_at",
-                "merged_at"
-            ]
-        }
+
     ,
     "contributors":
         {
@@ -228,24 +218,6 @@
                 "stats",
                 "commit",
                 "files"
-            ]
-        }
-    ,
-    "dependency_diff":
-        {
-            "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/dependabot/alerts",
-            "request_url_3": "",
-            "feature_list": [
-                "sha"
-            ],
-            "feature_key": "sha",
-            "subfeature_list": [
-                "change_type",
-                "ecosystem",
-                "name",
-                "license",
-                "vulnerabilities"
             ]
         }
     ,

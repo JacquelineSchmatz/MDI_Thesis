@@ -8,19 +8,20 @@ If you want to replace this with a Flask application run:
 and then choose `flask` as template.
 """
 
+import os
 import json
 import time
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 import logging
 import math
+import re
 from pathlib import Path
-from dateutil import relativedelta
 from datetime import datetime
+from dateutil import relativedelta
 from bs4 import BeautifulSoup
 import requests
 import mdi_thesis.constants as constants
 import mdi_thesis.base.utils as utils
-import os
 
 
 # logger = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ class Request:
         self.output_path = os.path.join(curr_path.parents[1],
                                         "outputs/data/", )
         self.today = datetime.today()
+        self.storage = {}
 
     def select_repos(
         self,
@@ -161,8 +163,7 @@ class Request:
                 repo_counter += 1
                 if repo_counter == repo_nr:
                     break
-            print("-----")
-            print(len(self.selected_repos_dict))
+
 
     def check_rate_limit(self, response):
         # try:
@@ -171,7 +172,7 @@ class Request:
         datetime_to_reset = datetime.fromtimestamp(int(unix_time_to_reset))
         time_till_rerun = datetime_to_reset - datetime.now()
         minutes_till_rerun = math.ceil(
-            time_till_rerun.total_seconds() / 60)
+            (time_till_rerun.total_seconds() + 300) / 60)
         self.logger.critical("API rate exceeded. Sleeping %s minutes.",
                              minutes_till_rerun)
         time.sleep(time_till_rerun.total_seconds())
@@ -234,6 +235,10 @@ class Request:
                     feature_list, request_url_1, request_url_2]
         request_data_dict = {}
         for param, query in query_dict.items():
+            if "organization_users" in queried_features:
+                time.sleep(10)
+            else:
+                time.sleep(600)
             param_list = self.get_repository_data(
                 feature_list=query[0],
                 request_url_1=query[1],
@@ -243,7 +248,7 @@ class Request:
                 updated_at_filt=updated_at_filt
             )
             request_data_dict[param] = param_list
-            time.sleep(600)
+
         return request_data_dict
 
     def get_single_object(self,
@@ -267,8 +272,15 @@ class Request:
             feature).get("request_url_2")
         request_url_3 = self.query_features.get(
             feature).get("request_url_3")
+        try:
+            filter_date = filters.get("since")
+            if filter_date:
+                filter_date = datetime.strptime(filter_date, '%Y-%m-%dT%H:%M:%SZ')
+        except AttributeError:
+            filter_date = None
         self.logger.info("Starting query for repository request...")
         # objects_per_repo = []  # objects_per_repo type: List[Dict[str, Any]]
+
         objects_per_repo = self.query_repository(
             queried_features=[feature], filters=filters).get(
             feature
@@ -294,16 +306,18 @@ class Request:
                     object_counter += 1
                     if object_counter % 100 == 0:
                         self.logger.info(
-                            "Get object Nr. %s of %s", object_counter, len(objects))
+                            "Get object Nr. %s of %s",
+                            object_counter, len(objects))
                     object_id = obj.get(object_key)
                     if object_id:
-                        comment_dict = utils.get_subfeatures(
-                            session=self.session,
-                            headers=self.headers,
+                        self.logger.info("Starting querying subfeatures for object %s",
+                                         object_id)
+                        comment_dict = self.get_subfeatures(
                             features=subfeature_list,
                             object_id=object_id,
                             object_url=url,
                             sub_url=request_url_3,
+                            filter_date=filter_date
                         )
                     else:
                         comment_dict = {}
@@ -348,45 +362,55 @@ class Request:
         )
         if repo_list:
             # repositories = repo_list
-            repositories = [repo for repo in repo_list if repo is not None]
+            objects = [repo for repo in repo_list if repo is not None]
         else:
-            repositories = self.selected_repos_dict
+            objects = self.selected_repos_dict
         one_year_ago = self.today - relativedelta.relativedelta(years=1)
-        for repo_num, repo_id in enumerate(repositories, start=1):
-            if repo_num % 100 == 0:
-                self.logger.info("Getting repo Nr. %s of %s",
-                        repo_num, len(repositories))
+        for ind, object_id in enumerate(objects, start=1):
+            if ind % 100 == 0:
+                self.logger.info("Getting object Nr. %s of %s",
+                                 ind, len(objects))
+                time.sleep(3)
             complete_results = False
             while not complete_results:
-                self.logger.info("Getting repository %s", repo_id)
+                if not repo_list:
+                    self.logger.info("Getting object %s", object_id)
                 if request_url_2:
-                    url_repo = str(request_url_1 + str(repo_id) + request_url_2)
+                    url_repo = str(request_url_1
+                                   + str(object_id)
+                                   + request_url_2)
                 else:
-                    url_repo = str(request_url_1 + str(repo_id))
-                self.logger.info("Getting page 1")
+                    url_repo = str(request_url_1 + str(object_id))
+                if not repo_list:
+                    self.logger.info("Getting page 1")
                 start_url = (str(url_repo) +
-                             "?simple=yes&" +
+                            # "?simple=yes&" +
+                            "?" + 
                              str(filter_str) +
                              "per_page=" +
                              str(self.results_per_page) +
                              "&page=1"
                             )
+                # if not repo_list:
                 self.logger.info("Start URL: %s", start_url)
                 try:
                     response = self.session.get(
                         start_url, headers=self.headers, timeout=100)
                     if response.status_code in [403, 429]:
-                        self.logger.critical("Status code: %s", response.status_code)
+                        self.logger.critical("Status code: %s",
+                                             response.status_code)
                         self.check_rate_limit(response=response)
                     elif response in [400, 401, 404, 406, 410]:
-                        self.logger.critical("Status code: %s", response.status_code)
+                        self.logger.critical("Status code: %s",
+                                             response.status_code)
                         self.logger.error("Query for repo %s failed: %s",
-                                          repo_id, response)
+                                          object_id, response)
                         break
                     elif response.status_code in [500, 502, 503, 504]:
-                        self.logger.critical("Status code: %s", response.status_code)
+                        self.logger.critical("Status code: %s",
+                                             response.status_code)
                         self.logger.debug("Connection failed at repo %s:%s",
-                                          repo_id, response)
+                                          object_id, response)
                         raise ConnectionError
                     if response.links.get("last"):
                         nr_of_pages = (
@@ -415,14 +439,14 @@ class Request:
                                 elif response.status_code in [400, 401,
                                                               404, 406, 410]:
                                     self.logger.error(
-                                        "Query repo %s failed:%s",
-                                        repo_id, response)
+                                        "Query object %s failed:%s",
+                                        object_id, response)
                                     break
                                 elif response.status_code in [500, 502,
                                                               503, 504]:
                                     self.logger.debug(
-                                        "Connection failed at repo %s:%s",
-                                        repo_id, response)
+                                        "Connection failed at object %s:%s",
+                                        object_id, response)
                                     raise ConnectionError
                                 next_result = response.json()
                                 results.extend(next_result)
@@ -446,15 +470,17 @@ class Request:
 
                 except Exception as repo_error:
                     self.logger.error(
-                        "Could not query Repo:%s\nError: %s",
-                        repo_id, repo_error)
+                        "Could not query Object:%s\nError: %s",
+                        object_id, repo_error)
                     self.logger.debug("Could not query results from Repo: %s \
-                                      ...Retry in 5 minutes.", repo_id)
+                                      ...Retry in 5 minutes.", object_id)
                     # failed_repo_id = repo_id
                     complete_results = False
                     time.sleep(10)
             # time.sleep(1)
             self.logger.info("Finished getting responses for all queries.")
+            if repo_list:
+                time.sleep(5)
             element_list = []  # element_list type: List[Dict[str, Any]]
             if isinstance(results, list):
                 for element in results:
@@ -482,7 +508,7 @@ class Request:
                 for feature in feature_list:
                     element_dict[feature] = results.get(feature)
                 element_list = element_dict  # [element_dict]
-            repository_dict[repo_id] = element_list
+            repository_dict[object_id] = element_list
 
         self.logger.info("Done getting repository data.")
         return repository_dict
@@ -500,112 +526,147 @@ class Request:
                 self.logger.info("Getting repo Nr. %s of %s",
                                  repo_num,
                                  len(repositories))
+                time.sleep(10)
             repo_name = data.get("name")
             repo_owner_login = data.get("owner").get("login")
             self.logger.info("Getting repository %s", repo)
             url_1 = self.query_features.get("dependents").get("request_url_1")
             url_2 = self.query_features.get("dependents").get("request_url_2")
             url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
-            nextExists = True
+            next_exists = True
             result_cnt = 500000
             total_dependents = 0
             visible_dependents = []
-            menu = None
-            for run in range(3):
-                response = self.session.get(url)
-                soup = BeautifulSoup(response.content, "html.parser")
-                dependents_box = soup.find("div", {"id": "dependents"})
-                if dependents_box:
+            options = None
+            for run in range(5):
+                try:
+                    response = self.session.get(url)
+                    soup = BeautifulSoup(response.content, "html.parser")
+                    dependents_box = soup.find("div", {"id": "dependents"})
                     menu = dependents_box.select(
                         "details",
                         {"class":
                         "select-menu.float-right.position-relative.details-reset.details-overlay"})
+                    if menu:
+                        options = menu[0].find_all(
+                            "div", {"class": "select-menu-list"})
                     break
-                else:
+                except Exception as error:
                     self.logger.error("""
-                                      Could not find dependency
-                                      box at %s try.
+                                      Error %s at try %s.
                                       Retry in 1 minute.
-                                      """, run + 1)
-                    time.sleep(10)
+                                      """, error, run+1)
+                    time.sleep(5)
                     continue
-            if menu:
-                options = menu[0].find_all(
-                    "div", {"class": "select-menu-list"})
-                if options:
-                    for row in options[0].find_all("a", href=True):
-                        time.sleep(1)
-                        href = re.search(
-                            "href=\"(.+?)\"\s",
-                            str(row)).group(1)
-                        pattern = "dependents?"
-                        href_split = href.replace(pattern,
-                                                  f" {pattern} ").split(" ")
-                        href_url = (url_1 +
-                                    href_split[0] +
-                                    href_split[1] +
-                                    "dependent_type=REPOSITORY&" +
-                                    href_split[2])
-                        tmp_href_response = self.session.get(
-                                    href_url)
-                        tmp_href_soup = BeautifulSoup(
-                                    tmp_href_response.content,
-                                    "html.parser")
-                        box = tmp_href_soup.find(
-                                    "a", {"class": "btn-link selected"}
-                                    ).text
-                        total_dependents += int(
-                            box.strip().split(" ")[0].replace(",", ""))
-                        if dependents_details:
-                            while (nextExists
-                                   and len(visible_dependents) <
-                                   result_cnt):
-                                try:
-                                    href_response = self.session.get(
-                                        href_url)
-                                    href_soup = BeautifulSoup(
-                                        href_response.content,
-                                        "html.parser")
-                                    dependents_box = href_soup.find(
-                                        "div", {"id": "dependents"})
-                                    if not dependents_box:
-                                        break
-                                    dependents = dependents_box.find("div", {"class": "Box"})
-                                    dependents_elements = dependents.find_all(
-                                        "div", {"class": "Box-row d-flex flex-items-center",
-                                                "data-test-id": "dg-repo-pkg-dependent"})
-                                    if dependents_elements:
-                                        for element in dependents_elements:
-                                            cell = element.find(
-                                                "span", {"class": "f5 color-fg-muted"})
-                                            try:
-                                                user = cell.find(
-                                                    "a", {"data-hovercard-type": "user"}).text
-                                            except AttributeError:
-                                                user = cell.find("a", {"data-hovercard-type": "organization"}).text
-                                            repository = element.find(
-                                                "a", {"class": "text-bold", "data-hovercard-type": "repository"}).text
-                                            visible_dependents.append([user, repository])
+
+            if options:
+                for row in options[0].find_all("a", href=True):
+                    time.sleep(1)
+                    href = re.search(
+                        "href=\"(.+?)\"\s",
+                        str(row)).group(1)
+                    self.logger.debug("Getting href %s", href)
+                    pattern = "dependents?"
+                    href_split = href.replace(pattern,
+                                              f" {pattern} ").split(" ")
+                    href_url = (url_1 +
+                                href_split[0] +
+                                href_split[1] +
+                                "dependent_type=REPOSITORY&" +
+                                href_split[2])
+                    tmp_href_response = self.session.get(
+                                href_url)
+                    tmp_href_soup = BeautifulSoup(
+                                tmp_href_response.content,
+                                "html.parser")
+                    box = tmp_href_soup.find(
+                                "a", {"class": "btn-link selected"}
+                                ).text
+                    dep_num = box.strip().split(" ")[0].replace(",", "")
+                    try:
+                        total_dependents += int(dep_num)
+                    except ValueError:
+                        self.logger.error(
+                            "Could not add value %s from link %s",
+                            dep_num, href_url)
+                        time.sleep(3)
+                    if dependents_details:
+                        page_count = 0
+                        if page_count % 10 == 0:
+                            time.sleep(3)
+                        while (next_exists
+                                and len(visible_dependents) <
+                                result_cnt):
+                            page_count += 1
+                            try:
+                                # href_response = self.session.get(
+                                #     href_url)
+                                # href_soup = BeautifulSoup(
+                                #     href_response.content,
+                                #     "html.parser")
+                                dependents_box = tmp_href_soup.find(
+                                    "div", {"id": "dependents"})
+                                if not dependents_box:
+                                    break
+                                dependents = dependents_box.find("div",
+                                                                 {"class": "Box"})
+                                dependents_elements = dependents.find_all(
+                                    "div",
+                                    {"class": "Box-row d-flex flex-items-center",
+                                     "data-test-id": "dg-repo-pkg-dependent"})
+                                if dependents_elements:
+                                    for element in dependents_elements:
+                                        cell = element.find(
+                                            "span",
+                                            {"class": "f5 color-fg-muted"})
+                                        try:
+                                            user = cell.find(
+                                                "a",
+                                                {"data-hovercard-type": "user"}
+                                                ).text
+                                        except AttributeError:
+                                            user = cell.find(
+                                                "a",
+                                                {"data-hovercard-type":
+                                                 "organization"}).text
+                                        repository = element.find(
+                                            "a",
+                                            {"class":
+                                             "text-bold",
+                                             "data-hovercard-type":
+                                             "repository"}).text
+                                        visible_dependents.append(
+                                            [user, repository])
+                                else:
+                                    break
+                                # selector = ""
+                                # try:
+                                selector = dependents_box.find(
+                                    "div", {"class": "BtnGroup"})
+                                for u in selector:
+                                    if u.text == "Next":
+                                        next_exists = True
+                                        if u.find(href=True):
+                                            href_url = u["href"]
+                                            self.logger.debug("Getting page %s", href_url)
+                                            page_count += 1
+                                        else:
+                                            self.logger.debug(
+                                                "No next page found for %s",
+                                                href_url
+                                            )
+                                            next_exists = False
                                     else:
-                                        break
-                                    try:
-                                        selector = dependents_box.find(
-                                            "div", {"class": "BtnGroup"})
-                                        for u in selector:
-                                            if u.text == "Next":
-                                                nextExists = True
-                                                href_url = u["href"]
-                                            else:
-                                                nextExists = False
-                                            
-                                    except Exception as href_info:
-                                        self.logger.info(href_info)
-                                        time.sleep(1)
-                                        nextExists = True
-                                        break
-                                except requests.exceptions.ConnectionError:
-                                    continue
-                            
+                                        next_exists = False
+                                # except AttributeError:
+                                #     self.logger.error("Error at url: %s",
+                                #                       href_url)
+                                #     time.sleep(3)
+                                #     next_exists = True
+                                #     break
+                            except requests.exceptions.ConnectionError:
+                                continue
+
             dependents_results[repo] = {"total_dependents":
                                         total_dependents,
                                         "visible_dependents":
@@ -635,12 +696,17 @@ class Request:
                 "dependencies").get("request_url_2")
             url = url_1 + str(repo_owner_login) + "/" + str(repo_name) + url_2
             self.logger.debug("Getting url: %s", url)
-            nextExists = True
+            next_exists = True
             result_cnt = 500000
             results = set()
             dependencies = None
-            while nextExists and len(results) < result_cnt:
-                for run in range(3):
+            page_count = 0
+            while next_exists and len(results) < result_cnt:
+                page_count += 1
+                if page_count % 100 == 0:
+                    time.sleep(5)
+                dependencies_box = BeautifulSoup()
+                for run in range(5):
                     try:
                         response = self.session.get(url)
                         soup = BeautifulSoup(response.content, "html.parser")
@@ -656,17 +722,19 @@ class Request:
                                             box at %s try.
                                             Retry in 1 minute.
                                             """, run + 1)
-                            time.sleep(10)
+                            time.sleep(3)
                             continue
                     except AttributeError:
                         self.logger.error(
-                            "Attribute Error at repo_num %s, repo_id = %s",
-                            repo_num, repo)
+                            "Attribute Error at repo_num %s, repo_id = %s in: \
+                                %s",
+                            repo_num, repo, dependencies_box)
+                        time.sleep(5)
                 if dependencies:
                     for element in dependencies.find_all(
                         "li", {"class": "Box-row",
                                "data-view-component": "true"}):
-                        time.sleep(1)
+                        # time.sleep(1)
                         try:
                             text = element.find(
                                 "a", {"class": "h4 Link--primary no-underline"}
@@ -680,27 +748,31 @@ class Request:
                     self.logger.debug("No dependencies for repo %s",
                                       repo)
                     break
-                nextExists = False
+                next_exists = False
                 try:
-                    for u in soup.find(
-                        "div",
-                        {"class": "paginate-container"}).find_all('a'):
-                        if u.text == "Next":
-                            nextExists = True
-                            url = url_1 + u["href"]
+                    paginate_cont = soup.find("div",
+                                              {"class": "paginate-container"})
+                    if paginate_cont:
+                        for u in paginate_cont.find_all('a'):
+                            if u.text == "Next":
+                                next_exists = True
+                                url = url_1 + u["href"]
+                                self.logger.debug("Getting page %s", url)
+                    else:
+                        self.logger.debug("Could not retrieve page %s", url)
+                        time.sleep(3)
+
                 except Exception as href_info:
                     self.logger.info(href_info)
-                    time.sleep(1)
-                    nextExists = True
+                    # time.sleep(1)
+                    next_exists = True
             dependency_results[repo] = sorted(results)  # len(results)
         return dependency_results
     
     def get_branches(self, activity: str = "all") -> Dict[int, Dict[str, str]]:
         """
-        NOTE: Dependency graph from GitHub is still in progress!
-        Changes in near future can cause errors!
-        Get dependencies of a repository.
-        :return: Repository ids and the number of dependencies
+        Gets all branches from GitHub page instead of API.
+        :return: Branch name and corresponding status
         """
         branches_results = {}
         repositories = self.selected_repos_dict.items()
@@ -712,8 +784,11 @@ class Request:
             repo_name = data.get("name")
             repo_owner_login = data.get("owner").get("login")
             self.logger.info("Getting repository %s", repo)
-            url_1 = "https://github.com/"
-            url_2 = "/branches"
+            url_1 = self.query_features.get(
+                "branches_web").get("request_url_1")
+            url_2 = self.query_features.get(
+                "branches_web").get("request_url_2")
+
             url = (url_1 +
                     str(repo_owner_login) +
                     "/" +
@@ -722,10 +797,10 @@ class Request:
                     ("/") +
                     activity
                     )
-            nextExists = True
+            next_exists = True
             result_cnt = 500000
             results = {}
-            while nextExists and len(results) < result_cnt:
+            while next_exists and len(results) < result_cnt:
                 response = self.session.get(url)
                 soup = BeautifulSoup(response.content, "html.parser")
                 all_branches = soup.find("div", {"data-target": "branch-filter.result"})
@@ -748,17 +823,17 @@ class Request:
                         results[branch_name] = branch_status
                 else:
                     break
-                nextExists = False
+                next_exists = False
                 try:
                     for u in soup.find(
                         "div", {"class": "paginate-container"}).find_all('a'):
                         if u.text == "Next":
-                            nextExists = True
+                            next_exists = True
                             url = u["href"]
                 except Exception as href_info:
                     self.logger.info(href_info)
                     time.sleep(1)
-                    nextExists = True
+                    next_exists = True
             branches_results[repo] = results  # len(results)
             time.sleep(1)
         return branches_results
@@ -805,6 +880,106 @@ class Request:
             time.sleep(1)
         return return_data
 
+    def get_subfeatures(
+        self,
+        features: List[str],
+        object_id: int,
+        object_url: str,
+        sub_url: str,
+        filter_date: Union[datetime, None]
+    ) -> Dict[int, List[Dict[str, Any]]]:
+        """
+        :param session: Active request session
+        :param headers: Headers for query with active session
+        :param features: Which features are queried from GitHub
+        :param object_id: Object ID,
+        from which the concerning comments are queryied (e.g. pull, issue)
+        :param object_url:
+        Base url to which the object id is added to query the information.
+        :param sub_url: Sub url referring to the subfeatures of a certain
+        information (e.g. comments as subfeatures for issues as features)
+        :return: Dictionary with the object id and the concerning comments
+        """
+        subfeature_dict = {}
+        url = object_url + "/" + str(object_id) + sub_url
+        url_param = "?per_page=100&page=1"  # "?simple=yes&per_page=100&page=1"
+        start_url = url + url_param
+        self.logger.info("Getting page %s", start_url)
+        response = self.session.get(start_url,
+                                    headers=self.headers,
+                                    timeout=100)
+        results = response.json()
+        if response.links.get('next'):
+            while response.links.get('next'):
+                try:
+                    url = response.links['next']['url']
+                    self.logger.debug("Search query: %s",
+                                      url)
+                    response = self.session.get(
+                        url,
+                        headers=self.headers)
+                    time.sleep(1)
+                    if response.status_code in [403, 429]:
+                        self.check_rate_limit(response=response)
+                    elif response.status_code in [400, 401,
+                                                404, 406, 410]:
+                        self.logger.error(
+                            "Query object %s failed:%s",
+                            object_id, response)
+                        break
+                    elif response.status_code in [500, 502,
+                                                503, 504]:
+                        self.logger.debug(
+                            "Connection failed at object %s:%s",
+                            object_id, response)
+                        raise ConnectionError
+                    next_result = response.json()
+                    if isinstance(results, List):
+                        results.extend(next_result)
+                    elif isinstance(results, Dict):
+                        results.update(next_result)
+                        
+                    # time.sleep(1)
+                except Exception as error:
+                    self.logger.error(
+                        "Error at querying all pages %s", error)
+                    time.sleep(10)
+
+        element_dict = {}  # type: dict[str, Any]
+        subfeature_list = []
+        if isinstance(results, list):
+            for element in results:
+                element_dict = {}
+                for feature in features:
+                    if filter_date:
+                        if element.get("created_at"):
+                            created_at = datetime.strptime(
+                                element.get("created_at"),
+                                '%Y-%m-%dT%H:%M:%SZ')
+                            if created_at > filter_date:
+                                element_dict[feature] = element.get(feature)
+                    else:
+                        element_dict[feature] = element.get(feature)
+                subfeature_list.append(element_dict)
+            subfeature_dict[object_id] = subfeature_list
+
+        elif isinstance(results, dict):
+            for feature in features:
+                if filter_date:
+                    if results.get("created_at"):
+                        created_at = datetime.strptime(
+                            results.get("created_at"),
+                            '%Y-%m-%dT%H:%M:%SZ')
+                        if created_at > filter_date:
+                            element_dict[feature] = results.get(feature)
+                else:
+                    element_dict[feature] = results.get(feature)
+                # element_dict[feature] = results.get(feature)
+            subfeature_list.append(element_dict)
+            subfeature_dict[object_id] = subfeature_list
+        else:
+            subfeature_dict[object_id] = []
+        return subfeature_dict
         
     def __del__(self):
         self.session.close()
