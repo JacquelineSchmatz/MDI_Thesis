@@ -237,30 +237,6 @@ def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
     return repo_contributors
 
 
-def get_organizations(contributors_data, data_object):
-    """
-    Get organizations contributor of a project belong to.
-    :param contributors_data: data with contributors
-    :param data_object: data object
-    :return: Number of organizations per repository
-    """
-    repo_organizations = {}
-    for repo, contributors in contributors_data.items():
-        contrib_list = []
-        for user in contributors:
-            contrib_list.append(user.get("login"))
-        users = data_object.query_repository(["organization_users"],
-                                             repo_list=contrib_list,
-                                             filters={})
-        distinct_organizations = set()
-        for user, data in users.get("organization_users").items():
-            for organization in data:
-                org_name = organization.get("login")
-                if org_name:
-                    distinct_organizations.add(org_name)
-        repo_organizations[repo] = len(distinct_organizations)
-    return repo_organizations
-
 def get_contributor_per_files(commit):
     """
     """

@@ -1,0 +1,69 @@
+{
+    "maturity_level": {
+        "repository": null,
+        "issue": ["updated_at", "months=6"],
+        "release": ["published_at", "months=12"]
+    },
+    "osi_approved_license": {
+        "repository": null
+    },
+    "technical_fork": {
+        "forks": ["created_at", "years=1"]
+    },
+    "criticality_score": {
+        "repository": null,
+        "contributors": null,
+        "repo_organizations": null,
+        "commits": null,
+        "release": ["published_at", "months=12"],
+        "issue": ["updated_at", "days=90"],
+        "issue_comments": ["updated_at", "days=90"],
+        "downstream_dependencies": null
+    },
+    "pull_requests": {
+        "pull_requests": null
+    },
+    "project_velocity": {
+        "issue": null
+    },
+    "github_community_health_percentage": {
+        "community_health": null
+    },
+    "issues": {
+        "issue": ["updated_at", "days=90"],
+        "issue_comments": ["updated_at", "days=90"]
+    },
+    "support_rate": {
+        "issue": ["updated_at", "months=6"],
+        "issue_comments": ["updated_at", "months=6"]
+    },
+    "code_dependency": {
+        "upstream_dependencies": null,
+        "downstream_dependencies": null
+    },
+    "security_advisories": {
+        "advisories": null
+    },
+    "contributions_distributions": {
+        "commits": ["updated_at", "months=6"],
+        "single_commits": ["updated_at", "months=6"]
+    },
+    "number_of_support_contributors": {
+        "commits": ["updated_at", "months=6"]
+    },
+
+    "size_of_community": {
+        "repository": null,
+        "contributors": null
+    },
+    "churn": {
+        "single_commits": ["updated_at", "months=1"]
+    },
+    "branch_lifecycle": {
+        "active_branches": null,
+        "stale_branches": null,
+        "branches": null
+    }
+
+
+}
