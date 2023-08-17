@@ -10,10 +10,9 @@ import json
 import os
 import sys
 import inspect
+from typing import Dict, List, Any, Union
 from datetime import date, datetime
 from dateutil import relativedelta
-from pathlib import Path
-from typing import Dict, List, Any, Union
 import mdi_thesis.base.base as base
 import mdi_thesis.base.utils as utils
 import mdi_thesis.metrics as metrics
@@ -85,8 +84,9 @@ class MetricsPipeline():
                 for element in content:
                     element_date = element.get(filter_parameter)
                     if element_date:
-                        filter_date = (self.filter_date -
-                                    relativedelta.relativedelta(filter_period))
+                        filter_date = (
+                            self.filter_date -
+                            relativedelta.relativedelta(filter_period))
                         filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
                         if filter_date > element_date:
                             content_filt.append(element)
@@ -99,9 +99,10 @@ class MetricsPipeline():
                         if element_date:
                             element_date = datetime.strptime(
                                 element_date, '%Y-%m-%dT%H:%M:%SZ').date()
-                            filter_date = (self.filter_date -
-                                           relativedelta.relativedelta(
-                                filter_period))
+                            filter_date = (
+                                self.filter_date -
+                                relativedelta.relativedelta(
+                                    filter_period))
                             if filter_date > element_date:
                                 content_filt[element_id] = element
                     elif isinstance(element, List):
@@ -110,9 +111,10 @@ class MetricsPipeline():
                             if element_date:
                                 element_date = datetime.strptime(
                                     element_date, '%Y-%m-%dT%H:%M:%SZ').date()
-                                filter_date = (self.filter_date -
-                                               relativedelta.relativedelta(
-                                    filter_period))
+                                filter_date = (
+                                    self.filter_date -
+                                    relativedelta.relativedelta(
+                                        filter_period))
                                 if filter_date > element_date:
                                     content_filt[element_id] = element
 
@@ -165,8 +167,9 @@ class MetricsPipeline():
                     metric_return = {}
                     if data:
                         if "filter_date" in function_args:
-                            metric_return = function_path(base_data=data,
-                                                        filter_date=self.filter_date)
+                            metric_return = function_path(
+                                base_data=data,
+                                filter_date=self.filter_date)
                         else:
                             metric_return = function_path(base_data=data)
 

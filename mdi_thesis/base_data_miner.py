@@ -312,7 +312,7 @@ class DataMinePipeline(base.Request):
                         time.sleep(240)
                     except Exception as error:
                         self.logger.error("Error at function %s:%s \
-                                    Retry in 10 minutes",
+                                    Retry in 4 minutes",
                                     data_query.__name__, error)
                         time.sleep(240)
                         repeat = True
@@ -379,9 +379,10 @@ def main():
     languages = ["python", "java", "php", "JavaScript", "cpp"]
 
     read_repository_json = False
-    curr_path = Path(os.path.dirname(__file__))
-    csv_path = os.path.join(curr_path.parents[0],
-                            "outputs/data/small_sample.csv", )
+    # curr_path = Path(os.path.dirname(__file__))
+    # csv_path = os.path.join(curr_path.parents[0],
+    #                         "outputs/data/small_sample.csv", )
+    csv_path = ""
     run_pipeline(start_date=start_date, languages=languages,
                  get_existing_repos=read_repository_json,
                  read_csv=csv_path)

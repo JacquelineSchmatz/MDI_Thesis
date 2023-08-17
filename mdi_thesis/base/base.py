@@ -94,7 +94,7 @@ class Request:
         if repo_list:
             for item in repo_list:
                 url = f"https://api.github.com/repos/{item}"
-                self.logger.debug("url=%s", url)
+                self.logger.debug("url= %s", url)
                 response = self.session.get(
                     url, headers=self.headers, timeout=100)
                 results = response.json()
@@ -104,7 +104,10 @@ class Request:
                     )
                     results.extend(res.json())
                 selected_repos.append(results)
+                self.logger.debug("Append results for object id: %s", item)
             self.selected_repos_dict = utils.clean_results(selected_repos)
+            self.logger.debug(
+                "Final object_ids: %s", self.selected_repos_dict.keys())
 
         else:
             search_url = (
@@ -210,7 +213,8 @@ class Request:
                     elif response.status_code in [500, 502, 503, 504]:
                         self.logger.critical("Status code: %s",
                                              response.status_code)
-                        raise ConnectionError
+                        time.sleep(240)
+                        continue
                     elif response.status_code == 200:
                         if "items" in response.json():
                             next_result = response.json()["items"]
@@ -264,7 +268,7 @@ class Request:
             if "organization_users" in queried_features:
                 time.sleep(10)
             else:
-                time.sleep(240)
+                time.sleep(60)
             param_list = self.get_repository_data(
                 feature_list=query[0],
                 request_url_1=query[1],
@@ -419,7 +423,6 @@ class Request:
                     str(self.results_per_page) +
                     "&page=1"
                     )
-                # if not repo_list:
                 self.logger.info("Start URL: %s", start_url)
                 try:
                     response = self.session.get(
@@ -427,8 +430,15 @@ class Request:
                     if response.status_code in [403, 429]:
                         self.logger.critical("Status code: %s",
                                              response.status_code)
-                        self.check_rate_limit(response=response)
-                    elif response in [400, 401, 404, 406, 410]:
+                        response_msg = response.json().get("message")
+                        if "list is too large" in response_msg:
+                            self.logger.critical(
+                                "Too much data to handle for API for object %s",
+                                object_id)
+                            break
+                        else:
+                            self.check_rate_limit(response=response)
+                    elif response.status_code in [400, 401, 404, 406, 410]:
                         self.logger.critical("Status code: %s",
                                              response.status_code)
                         self.logger.error("Query for repo %s failed: %s",
@@ -457,7 +467,6 @@ class Request:
                     next_link = response.links.get('next')
                     if next_link:
                         while next_link:
-                            time.sleep(2)
                             try:
                                 self.logger.debug("Search query: %s",
                                                   next_link.get("url"))
@@ -509,7 +518,7 @@ class Request:
 
             self.logger.info("Finished getting responses for all queries.")
             if repo_list:
-                time.sleep(5)
+                time.sleep(3)
             element_list = []  # element_list type: List[Dict[str, Any]]
             if isinstance(results, list):
                 for element in results:
