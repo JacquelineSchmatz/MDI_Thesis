@@ -20,18 +20,20 @@ def __get_ids_from_txt__(path: str) -> List[int]:
         ids = [int(i) for i in lines]
         return ids
 
-def invert_dict(dictionary): 
-    inverse = dict() 
-    for key in dictionary: 
-        # Go through the list that is saved in the dict:
+
+def invert_dict(dictionary: Dict):
+    """
+    Change dictionary values to keys.
+    """
+    inverse = dict()
+    for key in dictionary:
         for item in dictionary[key]:
-            # Check if in the inverted dict the key exists
-            if item not in inverse: 
-                # If not create a new list
-                inverse[item] = [key] 
-            else: 
-                inverse[item].append(key) 
+            if item not in inverse:
+                inverse[item] = [key]
+            else:
+                inverse[item].append(key)
     return inverse
+
 
 def clean_results(
     results: List[Any],
@@ -55,8 +57,6 @@ def clean_results(
             selected_items = {k: v for k, v in item.items() if k in key_list}
             test_dict[repo_id] = [item_counter, repo_name, repo_owner]
             dictionary_of_list[repo_id] = selected_items
-        else:
-            pass
     return dictionary_of_list
 
 
@@ -125,95 +125,6 @@ def get_subfeatures(
     else:
         subfeature_dict[object_id] = []
     return subfeature_dict
-
-
-def get_repo_age_score(repo_data) -> Dict[int, int]:
-    """
-    Calculate age score for each repository.
-    :param repo_data: Repository data with age information
-    :return: Age score for each repository
-    """
-    today = date.today()
-    age_score = {}
-    for repo, data in repo_data.items():
-        created_at = data[0].get("created_at")
-        created_at = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%SZ')
-        # updated_at = data[0].get("updated_at")
-        dates = relativedelta.relativedelta(today, created_at)
-        years = dates.years
-        months = dates.months
-        score = 0
-        # Age > 3 years
-        if (years == 3 and months > 0) or (years > 3):
-            score = 5
-        # Age > 2-3 years
-        elif (years == 2 and months > 0) or (years == 3 and months == 0):
-            score = 4
-        # Age > 1-2 years
-        elif (years == 2 and months == 0) or (years == 1 and months > 0):
-            score = 3
-        # Age 2-12 months
-        elif (years == 1 and months == 0) or (years == 0 and months >= 2):
-            score = 2
-        # Age < 2 months
-        elif years == 0 and months < 2:
-            score = 1
-        score = score/5
-        age_score[repo] = score
-    return age_score
-
-
-def get_repo_issue_score(repo_data) -> Dict[int, int]:
-    """
-    Calculates issue scores.
-    :param repo_data: Repository data to get issues
-    :return: Issue scores for each repository
-    """
-    issue_score = {}
-    score = 0
-    for rep, data in repo_data.get("issue").items():
-        nr_of_issues = len(data)
-        if nr_of_issues > 1000:
-            score = 1
-        elif nr_of_issues > 500 and nr_of_issues < 1000:
-            score = 2
-        elif nr_of_issues > 100 and nr_of_issues <= 500:
-            score = 3
-        elif nr_of_issues > 50 and nr_of_issues <= 100:
-            score = 4
-        elif nr_of_issues <= 50:
-            score = 5
-        score = score/5
-        issue_score[rep] = score
-    return issue_score
-
-
-def get_repo_release_score(repo_data) -> Dict[int, int]:
-    """
-    Get release score for each repository.
-    :param repo_data:
-    :return: release score for each repository
-    """
-    today = date.today()
-    release_score = {}
-    for repo, data in repo_data.get("release").items():
-        releases_filt = []
-        for release in data:
-            pub_date = release.get("published_at")
-            pub_date = datetime.strptime(pub_date, '%Y-%m-%dT%H:%M:%SZ')
-            date_diff = relativedelta.relativedelta(today, pub_date)
-            if (date_diff.years == 1 and date_diff.months == 0) or (date_diff.years == 0):
-                releases_filt.append(release)
-        if releases_filt:
-            if len(releases_filt) >= 1 and len(releases_filt) <= 3:
-                score = 3
-            else:
-                score = 5
-        else:
-            score = 1
-        score = score/5
-        release_score[repo] = score
-    return release_score
 
 
 def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
