@@ -8,7 +8,7 @@
         "repository": null
     },
     "technical_fork": {
-        "forks": ["created_at", "years=1"]
+        "forks": ["created_at", "months=12"]
     },
     "criticality_score": {
         "repository": null,
@@ -45,8 +45,8 @@
         "advisories": null
     },
     "contributions_distributions": {
-        "commits": ["updated_at", "months=6"],
-        "single_commits": ["updated_at", "months=6"]
+        "commits": ["updated_at", "months=1"],
+        "single_commits": ["updated_at", "months=1"]
     },
     "number_of_support_contributors": {
         "commits": ["updated_at", "months=6"]
@@ -63,7 +63,9 @@
         "active_branches": null,
         "stale_branches": null,
         "branches": null
+    },
+    "elephant_factor": {
+        "contributors": null,
+        "organization_users": null
     }
-
-
 }
