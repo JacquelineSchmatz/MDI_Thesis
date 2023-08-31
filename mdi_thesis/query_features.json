@@ -82,23 +82,6 @@
                 "merged_at"
             ]
         }
-    ,
-    "pull_comments":
-    {
-        "request_url_1": "https://api.github.com/repositories/",
-        "request_url_2": "/pulls",
-        "request_url_3": "/comments",
-        "feature_list": [
-            "number"
-        ],
-        "feature_key": "number",
-        "subfeature_list": [
-            "id",
-            "created_at",
-            "in_reply_to_id",
-            "user"
-        ]
-    }
 ,
     "release":
         {
@@ -131,16 +114,6 @@
         "request_url_2": "/branches"
     }
     ,
-    "license":
-        {
-            "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/license",
-            "request_url_3": "",
-            "feature_list": [
-                "license"
-            ]
-        }
-    ,
     "forks":
         {
             "request_url_1": "https://api.github.com/repositories/",
@@ -167,26 +140,13 @@
     "contributors":
         {
             "request_url_1": "https://api.github.com/repositories/",
-            "request_url_2": "/contributors?anon=0",
+            "request_url_2": "/contributors",
             "request_url_3": "",
             "feature_list": [
                 "id",
                 "login",
                 "contributions"
             ]
-        }
-    ,
-    "users":
-        {
-            "request_url_1": "https://api.github.com/users/",
-            "request_url_2": "",
-            "request_url_3": "",
-            "feature_list": [
-                "login",
-                "id",
-                "company"
-            ],
-            "feature_key": "login"
         }
     ,
     "organization_users":
@@ -213,8 +173,6 @@
             ],
             "feature_key": "sha",
             "subfeature_list": [
-                "comment_count",
-                "status",
                 "stats",
                 "commit",
                 "files"

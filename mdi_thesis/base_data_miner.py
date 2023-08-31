@@ -8,6 +8,7 @@ Description: Pipeline for data collection.
 import time
 import csv
 import os
+import sys
 import math
 from pathlib import Path
 from datetime import date
@@ -30,7 +31,7 @@ class DataMinePipeline(base.Request):
         :param repo_num: Repo number to be queried.
         :param get_existing_repos: True if a file already exists
                                 with repositories for the current language
-        
+
         """
         super().__init__(filter_date)
         self.logger.info("Start date: %s", self.filter_date)
@@ -57,19 +58,23 @@ class DataMinePipeline(base.Request):
         for feature, data in self.base_data.items():
             utils.dict_to_json(data=data,
                                data_path=self.output_path,
-                               feature=(self.language + "_" + feature))
+                               feature=self.language + "_" + feature)
 
     def forks_to_json(self,):
         """
         Queries data to json file.
         """
         forks = self.query_repository(["forks"],
-                                      filters={},
-                                      updated_at_filt="months=12"
+                                      filters={
+                                          "sort": "=newest"},
+                                      created_at_filt="months=12"
                                       )
-        utils.dict_to_json(data=forks.get("forks"),
-                           data_path=self.output_path,
-                           feature=(self.language + "_" + "forks"))
+        data = forks.get("forks")
+        if data:
+            utils.dict_to_json(
+                data=data,
+                data_path=self.output_path,
+                feature=self.language + "_" + "forks")
 
     def pulls_issues_to_json(self):
         """
@@ -82,14 +87,16 @@ class DataMinePipeline(base.Request):
             ["pull_requests",
              "issue"],
             filters={
-                "state": "all",
-                "since": filter_date_issues},
+                "state": "=all",
+                "since": str("=") + filter_date_issues,
+                "sort": "=updated",
+                "order": "=desc"},
             updated_at_filt="months=12"
                 )
         for feature, data in pulls_data.items():
             utils.dict_to_json(data=data,
                                data_path=self.output_path,
-                               feature=(self.language + "_" + feature))  
+                               feature=self.language + "_" + feature)
 
     def commits_to_json(self):
         """
@@ -99,11 +106,11 @@ class DataMinePipeline(base.Request):
         filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
         commits = self.query_repository(
             ["commits"],
-            filters={"since": filter_date})  # Check time filters for each metric
+            filters={"since": str("=") + filter_date})
         for feature, data in commits.items():
             utils.dict_to_json(data=data,
                                data_path=self.output_path,
-                               feature=(self.language + "_" + feature))
+                               feature=self.language + "_" + feature)
 
     def single_commits_to_json(self):
         """
@@ -114,11 +121,11 @@ class DataMinePipeline(base.Request):
         single_commits = self.get_single_object(
             feature="commits",
             filters={
-                "since": filter_date_str
+                "since": str("=") + filter_date_str
                 }, output_format="dict")
         utils.dict_to_json(data=single_commits,
                            data_path=self.output_path,
-                           feature=(self.language + "_single_commits"))
+                           feature=self.language + "_single_commits")
 
     def issue_comments_to_json(self):
         """
@@ -129,18 +136,19 @@ class DataMinePipeline(base.Request):
                         For filtering the results consistently.
         """
         filter_date_issues = (self.filter_date -
-                              relativedelta.relativedelta(months=6))
+                              relativedelta.relativedelta(days=90))
         filter_date_issues = filter_date_issues.strftime('%Y-%m-%dT%H:%M:%SZ')
         issue_comments = self.get_single_object(
             feature="issue_comments",
             filters={
-                "since": filter_date_issues,
-                "state": "all"
-                },
-                output_format="dict")
+                "since": str("=") + filter_date_issues,
+                "state": "=all",
+                "sort": "=updated",
+                "order": "=desc"
+                }, output_format="dict")
         utils.dict_to_json(data=issue_comments,
                            data_path=self.output_path,
-                           feature=(self.language + "_issue_comments"))
+                           feature=self.language + "_issue_comments")
 
     def upstream_dependencies_to_json(self):
         """
@@ -149,7 +157,7 @@ class DataMinePipeline(base.Request):
         upstream_dependencies = self.get_dependencies()
         utils.dict_to_json(data=upstream_dependencies,
                            data_path=self.output_path,
-                           feature=(self.language + "_upstream_dependencies"))
+                           feature=self.language + "_upstream_dependencies")
 
     def downstream_dependencies_to_json(self):
         """
@@ -157,10 +165,10 @@ class DataMinePipeline(base.Request):
         """
 
         downstream_dependencies = self.get_dependents(
-            dependents_details=True)
+            dependents_details=False)
         utils.dict_to_json(data=downstream_dependencies,
                            data_path=self.output_path,
-                           feature=(self.language + "_downstream_dependencies"))
+                           feature=self.language + "_downstream_dependencies")
 
     def branches_to_json(self):
         """
@@ -170,7 +178,7 @@ class DataMinePipeline(base.Request):
         stale_branches = self.get_branches(activity="stale")
         utils.dict_to_json(data=stale_branches,
                            data_path=self.output_path,
-                           feature=(self.language + "_stale_branches"))
+                           feature=self.language + "_stale_branches")
 
         time.sleep(300)
 
@@ -178,7 +186,7 @@ class DataMinePipeline(base.Request):
         active_branches = self.get_branches(activity="active")
         utils.dict_to_json(data=active_branches,
                            data_path=self.output_path,
-                           feature=(self.language + "_active_branches"))
+                           feature=self.language + "_active_branches")
         # All branches from API
         branches = self.get_single_object(
             feature="branches",
@@ -187,7 +195,7 @@ class DataMinePipeline(base.Request):
             )
         utils.dict_to_json(data=branches,
                            data_path=self.output_path,
-                           feature=(self.language + "_branches"))
+                           feature=self.language + "_branches")
 
     def contributors_to_json(self):
         """
@@ -203,6 +211,8 @@ class DataMinePipeline(base.Request):
         if contributors_data and isinstance(contributors_data, dict):
             for ind, (repo, contributors) in enumerate(
                     contributors_data.items()):
+                self.logger.debug("Getting repo %s of %s",
+                                  ind, len(contributors_data))
                 contributor_list = []
                 if ind % 100 == 0:
                     self.logger.debug(
@@ -211,25 +221,28 @@ class DataMinePipeline(base.Request):
                     time.sleep(5)
                 user_contributions = {}
                 total_contributions = 0
-                for user in contributors:
-                    contrib_num = user.get("contributions")
-                    total_contributions += contrib_num
-                    login = user.get("login")
-                    if login != "dependabot[bot]":
-                        user_contributions[login] = contrib_num
+                if len(contributors) > 0:
+                    for user in contributors:
+                        if isinstance(user, dict):
+                            contrib_num = user.get("contributions")
+                            if contrib_num:
+                                total_contributions += contrib_num
+                            login = user.get("login")
+                            if login != "dependabot[bot]":
+                                user_contributions[login] = contrib_num
+                        else:
+                            self.logger.debug("User no dictionary: %s",
+                                              user)
 
-                contributions_users = {
-                    k: v for k, v in sorted(user_contributions.items(),
-                                            key=lambda item: item[1])}
-                twenty_percent = len(contributions_users) * 0.2
-                for ind, login in enumerate(contributions_users):
+                twenty_percent = len(user_contributions) * 0.2
+                for ind, login in enumerate(user_contributions):
                     contributor_list.append(login)
                     if ind == math.ceil(twenty_percent):
                         break
-                self.logger.info("Gathering %s contributors from total %s",
-                                 math.ceil(twenty_percent),
-                                 len(contributions_users))
-                # contributor_list = list(user_contributions)
+                self.logger.info(
+                    "Gathering %s contributors from total %s",
+                    math.ceil(twenty_percent),
+                    len(user_contributions))
                 users = self.query_repository(["organization_users"],
                                               repo_list=contributor_list,
                                               filters={})
@@ -238,53 +251,21 @@ class DataMinePipeline(base.Request):
                     repo)
                 repo_user_organizations[repo] = users.get("organization_users")
 
-            utils.dict_to_json(data=repo_user_organizations,
-                               data_path=self.output_path,
-                               feature=(self.language + "_organization_users"))
-            self.logger.debug("Getting contributor count.")
-            # Contributor_count
-            contributor_count = utils.get_contributors(contributors_data,
-                                                       check_contrib=True)
+                utils.dict_to_json(
+                    data=repo_user_organizations,
+                    data_path=self.output_path,
+                    feature=self.language + "_organization_users")
+                self.logger.debug("Getting contributor count.")
+                # Contributor_count
+            contributor_count = utils.get_contributors(
+                contributors_data,
+                check_contrib=True)
 
-            utils.dict_to_json(data=contributor_count,
-                            data_path=self.output_path,
-                            feature=(self.language + "_contributor_count"))
-            # contributor_count_checked = utils.get_contributors(contributors_data,
-            #     check_contrib=True)
+            utils.dict_to_json(
+                data=contributor_count,
+                data_path=self.output_path,
+                feature=self.language + "_contributor_count")
 
-            # utils.dict_to_json(data=contributor_count_checked,
-            #                 data_path=self.output_path,
-            #                 feature=(self.language +
-            #                             "_contributor_count_checked"))
-            # self.logger.debug("Getting Contributors organization.")
-            # # contributors_org_to_json
-            # repo_organizations = {}
-            # for repo, contributors in contributors_data.items():
-            #     contrib_list = []
-            #     for user in contributors:
-            #         contrib_list.append(user.get("login"))
-            #     users = self.query_repository(["organization_users"],
-            #                                   repo_list=contrib_list,
-            #                                   filters={})
-            #     distinct_organizations = set()
-            #     organization_users = users.get("organization_users")
-            #     if organization_users:
-            #         for user, data in organization_users.items():
-            #             for organization in data:
-            #                 org_name = organization.get("login")
-            #                 if org_name:
-            #                     distinct_organizations.add(org_name)
-            #         repo_organizations[repo] = len(distinct_organizations)
-            # utils.dict_to_json(data=repo_organizations,
-            #                    data_path=self.output_path,
-            #                    feature=(self.language +
-            #                             "_" +
-            #                             "repo_organizations")
-            #                    )
-        else:
-            self.logger.debug("Wrong data type element: %s", contributors_data)
-            quit()
-      
     def search_to_json(self):
         """
         Runs through all functions for the current language
@@ -299,7 +280,7 @@ class DataMinePipeline(base.Request):
         if self.get_existing_repos:
             self.logger.info("Getting existing repos")
             curr_path = Path(os.path.dirname(__file__))
-            filename = (self.language + "_repository.json")
+            filename = self.language + "_repository.json"
             path = os.path.join(curr_path.parents[0],
                                 "outputs", "data", filename)
             data = utils.json_to_dict(path=path)
@@ -312,20 +293,25 @@ class DataMinePipeline(base.Request):
                     repo_owner_login = repo_owner.get("login")
                     repo_str = repo_owner_login + "/" + repo_name
                     repo_list.append(repo_str)
-            # self.repo_list = list(data.keys())
             self.repo_list = repo_list
             self.logger.debug(self.repo_list)
         else:
             self.logger.info("Searching repos")
             self.query_parameters = ("pushed:>2022-12-31+language:" +
                                      self.language + search_query)
-            # self.query_parameters = self.language + search_query
-        self.select_repos(
-            repo_nr=self.repo_num,
-            repo_list=self.repo_list,
-            query_parameters=self.query_parameters)
-        self.logger.info("Finished getting repos for language %s",
-                         self.language)
+        if self.repo_list:
+            self.select_repos(
+                repo_nr=self.repo_num,
+                repo_list=self.repo_list,
+                query_parameters=self.query_parameters)
+            self.logger.info(
+                "Finished getting repos for language %s",
+                self.language)
+        else:
+            self.logger.critical(
+                "Failed at selecting repositories."
+            )
+            sys.exit()
 
         for data_query in self.query_functions:
             self.logger.info("Starting function %s", data_query.__name__)
@@ -338,11 +324,10 @@ class DataMinePipeline(base.Request):
                                      data_query.__name__)
                     time.sleep(240)
                 except Exception as error:
-                    self.logger.error("Error at function %s:%s \
-                                Retry in 4 minutes",
-                                data_query.__name__, error)
-                    time.sleep(240)
-                    repeat = True
+                    self.logger.error(
+                        "Error at function %s:%s",
+                        data_query.__name__, error)
+                    raise
 
     def build_pipeline(self):
         """
@@ -350,9 +335,9 @@ class DataMinePipeline(base.Request):
         """
 
         query_functions = [
-            # self.base_data_to_json  #,
-            self.forks_to_json,
-            # self.pulls_issues_to_json,
+            # self.base_data_to_json ,
+            # self.forks_to_json,
+            self.pulls_issues_to_json,
             # self.commits_to_json,
             # self.single_commits_to_json,
             # self.issue_comments_to_json,
@@ -362,7 +347,7 @@ class DataMinePipeline(base.Request):
             # self.contributors_to_json
         ]
         return query_functions
-
+#  Rerun user_organization for csv, pulls_issues for all languages, issue_comments for all languages
 
 def run_pipeline(start_date, languages, get_existing_repos, read_csv=""):
     """
@@ -399,15 +384,19 @@ def main():
     """
     Setting parameters for pipeline here.
     """
-    start_date = date.today()
-    # start_date = date(2023, 8, 22)
-    
+    # start_date = date.today()
+    # start_date = date(2023, 8, 25)
+    start_date = date(2023, 8, 23)
+    # start_date = date(2023, 8, 21)
+    # start_date = date(2023, 8, 26)
     languages = ["php", "cpp", "python", "JavaScript", "java"]
-    # languages = ["python", "JavaScript", "java"]
+    languages = ["python", "JavaScript", "java"]  # Branches
+    # languages = ["JavaScript", "java"]
+    # languages = ["cpp", "python", "JavaScript", "java"] # organizations
     read_repository_json = True
-    # curr_path = Path(os.path.dirname(__file__))
-    # csv_path = os.path.join(curr_path.parents[0],
-    #                         "outputs/data/small_sample.csv", )
+    curr_path = Path(os.path.dirname(__file__))
+    csv_path = os.path.join(curr_path.parents[0],
+                            "outputs/data/small_sample.csv", )
     csv_path = ""
     run_pipeline(start_date=start_date, languages=languages,
                  get_existing_repos=read_repository_json,

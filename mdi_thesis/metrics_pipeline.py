@@ -26,7 +26,7 @@ class MetricsPipeline():
     def __init__(self, filter_date: date):
         self.logger = base.get_logger(__name__)
         self.results_dict = {}
-        self.languages = []
+        self.languages = set()
         self.data_dict = self.read_json()
         self.filter_date = filter_date
         metrics_objective_mapping = open(
@@ -50,17 +50,18 @@ class MetricsPipeline():
         path = os.path.join(parent_dir, "outputs", "data")
         self.logger.info("Reading json files from path %s", path)
         for filename in os.listdir(path):
-            objective = filename.split(".")[0].split("_", 1)[1]
-            language = filename.split("_")[0]
-            self.languages.append(language)
-            file_path = os.path.join(path, filename)
-            tmp_dict = utils.json_to_dict(path=file_path)
-            lang_dict = {}
-            lang_dict[language] = tmp_dict
-            if objective in combined_dict:
-                combined_dict[objective].update(lang_dict)
-            else:
-                combined_dict[objective] = lang_dict
+            if filename.endswith(".json"):
+                objective = filename.split(".")[0].split("_", 1)[1]
+                language = filename.split("_")[0]
+                self.languages.add(language)
+                file_path = os.path.join(path, filename)
+                tmp_dict = utils.json_to_dict(path=file_path)
+                lang_dict = {}
+                lang_dict[language] = tmp_dict
+                if objective in combined_dict:
+                    combined_dict[objective].update(lang_dict)
+                else:
+                    combined_dict[objective] = lang_dict
         return combined_dict
 
     def filter_data(self, data: Dict,
@@ -77,6 +78,11 @@ class MetricsPipeline():
         self.logger.info("Filtering data by Parameter: %s and Period %s",
                          filter_parameter, filter_period)
         filtered_data = {}
+        filter_date = (
+            self.filter_date -
+            relativedelta.relativedelta(filter_period))
+        if isinstance(filter_date, datetime):
+            filter_date = filter_date.date()
         for repo, content in data.items():
             content_filt = None
             if isinstance(content, List):
@@ -84,13 +90,26 @@ class MetricsPipeline():
                 for element in content:
                     element_date = element.get(filter_parameter)
                     if element_date:
-                        filter_date = (
-                            self.filter_date -
-                            relativedelta.relativedelta(filter_period))
-                        filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        element_date = datetime.strptime(
+                            element_date,
+                            '%Y-%m-%dT%H:%M:%SZ')
+                        if isinstance(element_date, datetime):
+                            element_date = element_date.date()
                         if filter_date > element_date:
                             content_filt.append(element)
-                
+                    else:
+                        commit = element.get("commit")
+                        author = commit.get("author")
+                        element_date = author.get("date")
+                        if element_date:
+                            element_date = datetime.strptime(
+                                element_date,
+                                '%Y-%m-%dT%H:%M:%SZ')
+                            if isinstance(element_date, datetime):
+                                element_date = element_date.date()
+                            if filter_date > element_date:
+                                content_filt.append(element)
+
             if isinstance(content, Dict):
                 content_filt = {}
                 for element_id, element in content.items():
@@ -98,26 +117,59 @@ class MetricsPipeline():
                         element_date = element.get(filter_parameter)
                         if element_date:
                             element_date = datetime.strptime(
-                                element_date, '%Y-%m-%dT%H:%M:%SZ').date()
+                                element_date, '%Y-%m-%dT%H:%M:%SZ')
                             filter_date = (
                                 self.filter_date -
                                 relativedelta.relativedelta(
                                     filter_period))
+                            if isinstance(filter_date, datetime):
+                                filter_date = filter_date.date()
+                            if isinstance(element_date, datetime):
+                                element_date = element_date.date()
                             if filter_date > element_date:
                                 content_filt[element_id] = element
+                        else:
+                            commit = element.get("commit")
+                            if commit:
+                                author = commit.get("author")
+                                element_date = author.get("date")
+                                if element_date:
+                                    element_date = datetime.strptime(
+                                        element_date,
+                                        '%Y-%m-%dT%H:%M:%SZ')
+                                    if isinstance(element_date, datetime):
+                                        element_date = element_date.date()
+                                    if filter_date > element_date:
+                                        content_filt[element_id] = element
                     elif isinstance(element, List):
                         for elem in element:
                             element_date = elem.get(filter_parameter)
                             if element_date:
                                 element_date = datetime.strptime(
-                                    element_date, '%Y-%m-%dT%H:%M:%SZ').date()
+                                    element_date, '%Y-%m-%dT%H:%M:%SZ')
                                 filter_date = (
                                     self.filter_date -
                                     relativedelta.relativedelta(
                                         filter_period))
+                                if isinstance(filter_date, datetime):
+                                    filter_date = filter_date.date()
+                                if isinstance(element_date, datetime):
+                                    element_date = element_date.date()
                                 if filter_date > element_date:
                                     content_filt[element_id] = element
-
+                            else:
+                                commit = elem.get("commit")
+                                if commit:
+                                    author = commit.get("author")
+                                    element_date = author.get("date")
+                                    if element_date:
+                                        element_date = datetime.strptime(
+                                            element_date,
+                                            '%Y-%m-%dT%H:%M:%SZ')
+                                        if isinstance(element_date, datetime):
+                                            element_date = element_date.date()
+                                        if filter_date > element_date:
+                                            content_filt[element_id] = element
             filtered_data[repo] = content_filt
         return filtered_data
 
@@ -128,11 +180,16 @@ class MetricsPipeline():
         :param language: Programming language
         :param objectives: List with required objectives.
         """
-        self.logger.info("Data Preparation of language %s",
-                         language)
+
         prep_data = {}
         for objective, filters in objectives.items():
-            objective_dict = self.data_dict.get(objective)
+            self.logger.info("Data Preparation for %s and objective %s",
+                             language, objective)
+            objective_dict = {}
+            if objective in self.data_dict:
+                objective_dict = self.data_dict.get(objective)
+            else:
+                self.logger.critical("No dictionary found for %s", objective)
             data_dict = {}
             if objective_dict:
                 data_dict = objective_dict.get(language)
@@ -149,7 +206,9 @@ class MetricsPipeline():
                             filter_period=period)
                         prep_data[objective] = filtered_data
                     else:
+                        self.logger.debug("Getting objective %s", objective)
                         prep_data[objective] = data_dict
+
         return prep_data
 
     def run_metrics_to_json(self):
@@ -157,13 +216,19 @@ class MetricsPipeline():
         Run metric functions and store results in json files.
         """
         self.logger.info("Starting calculating metrics to json files.")
+        languages = ["csv"]
         for lang in self.languages:
+        # for lang in languages:
+            self.logger.debug("Getting language %s", lang)
             metrics_results = {}
             for metric, objectives in self.metrics_objective_mapping.items():
                 try:
+                    self.logger.info("Getting metric %s", metric)
                     data = self.prep_data(language=lang, objectives=objectives)
                     function_path = getattr(metrics, metric)
                     function_args = str(inspect.signature(function_path))
+                    self.logger.debug("Function path: %s - Function args: %s",
+                                      function_path, function_args)
                     metric_return = {}
                     if data:
                         if "filter_date" in function_args:
@@ -171,14 +236,17 @@ class MetricsPipeline():
                                 base_data=data,
                                 filter_date=self.filter_date)
                         else:
+                            self.logger.debug("Calculating metric %s", metric)
                             metric_return = function_path(base_data=data)
-
+                    else:
+                        self.logger.critical("No data for metric %s", metric)
                     metrics_results[metric] = metric_return
-                except AttributeError:
-                    continue
+                except AttributeError as att_err:
+                    self.logger.error("Attribute Error: %s\n", att_err)
+                    raise
             utils.dict_to_json(data=metrics_results,
                                data_path=self.output_path,
-                               feature=lang + "_metrics.json"
+                               feature=lang + "_metrics"
                                )
             self.results_dict[lang] = metrics_results
 
@@ -195,7 +263,7 @@ def main():
     """
     Set start for pipeline filters
     """
-    start_date = date(2023, 8, 10)
+    start_date = date(2023, 8, 27)
     run_pipeline(start_date=start_date)
 
 

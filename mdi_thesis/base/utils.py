@@ -6,9 +6,7 @@ import logging
 import json
 import os
 import re
-from typing import Dict, List, Any
-from datetime import date, datetime
-from dateutil import relativedelta
+from typing import Dict, List, Any, Union
 import requests
 
 logger = logging.getLogger(__name__)
@@ -139,9 +137,13 @@ def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
         contributors_nr = 0
         if check_contrib:
             for user in data:
-                contributions = user.get("contributions")
-                if contributions:
-                    contributors_nr += 1
+                if isinstance(user, dict):
+                    try:
+                        contributions = user.get("contributions")
+                        if contributions:
+                            contributors_nr += 1
+                    except AttributeError as att_err:
+                        print(f"Attribute error {att_err} at data {data} and user{user}")
         else:
             contributors_nr = len(data)
         repo_contributors[repo] = contributors_nr
@@ -179,21 +181,22 @@ def get_contributor_per_files(commit):
                 logger.error("Attribute error: %s", atterr)
                 raise
             if co_authors:
-                contributors = set(contributor) | co_authors
+                contributors = {contributor} | co_authors
             else:
-                contributors = contributor
+                contributors = {contributor}
             for file in files:
                 filename = file.get("filename")
-
                 if filename not in file_committer:
                     file_committer[filename] = contributors
                 else:
-                    file_committer[filename].update(contributors)
-
+                    existing_file = file_committer.get(filename)
+                    if existing_file:
+                        file_committer[filename] = existing_file.union(
+                            contributors)
     return file_committer
 
 
-def dict_to_json(data: Dict, data_path: str, feature: str):
+def dict_to_json(data: Union[Dict, List], data_path: str, feature: str):
     """
     Helper function to write file.
     :param data: data to be written
@@ -202,7 +205,7 @@ def dict_to_json(data: Dict, data_path: str, feature: str):
     """
     json_object = json.dumps(data, indent=4)
     file_name = os.path.join(data_path, (feature + ".json"))
-    with open(file_name, "w") as outfile:
+    with open(file_name, "w", encoding='utf-8') as outfile:
         outfile.write(json_object)
 
 
@@ -212,9 +215,6 @@ def json_to_dict(path: str) -> Dict:
     :param path: Path to json file
     :return: dictionary with json content
     """
-    with open(path) as json_file:
+    with open(path, encoding='utf-8') as json_file:
         data = json.load(json_file)
     return data
-
-
-

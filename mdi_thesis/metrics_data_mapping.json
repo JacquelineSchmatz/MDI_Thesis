@@ -34,8 +34,8 @@
         "issue_comments": ["updated_at", "days=90"]
     },
     "support_rate": {
-        "issue": ["updated_at", "months=6"],
-        "issue_comments": ["updated_at", "months=6"]
+        "issue": ["updated_at", "days=90"],
+        "issue_comments": ["updated_at", "days=90"]
     },
     "code_dependency": {
         "upstream_dependencies": null,
@@ -45,11 +45,11 @@
         "advisories": null
     },
     "contributions_distributions": {
-        "commits": ["updated_at", "months=1"],
-        "single_commits": ["updated_at", "months=1"]
+        "commits": ["date", "months=1"],
+        "single_commits": ["date", "months=1"]
     },
     "number_of_support_contributors": {
-        "commits": ["updated_at", "months=6"]
+        "commits": ["date", "months=6"]
     },
 
     "size_of_community": {
@@ -57,7 +57,7 @@
         "contributors": null
     },
     "churn": {
-        "single_commits": ["updated_at", "months=1"]
+        "single_commits": ["date", "months=1"]
     },
     "branch_lifecycle": {
         "active_branches": null,
