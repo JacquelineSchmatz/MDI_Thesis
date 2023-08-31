@@ -516,7 +516,6 @@ class Request:
                                 "No valid response for object %s", object_id)
                             complete_results = True
 
-                        # raise ConnectionError
                     nr_of_pages = 1
                     if response.links.get("last"):
                         last = response.links.get("last")
@@ -572,16 +571,11 @@ class Request:
                                             complete_results = True
                                             break
                                     elif created_at_filt and filter_since:
-                                        self.logger.debug(
-                                            "Created at filter: %s",
-                                            created_at_filt)
                                         created_at = next_result[-1].get(
                                             "created_at")
                                         create_date = datetime.strptime(
                                             created_at,
                                             '%Y-%m-%dT%H:%M:%SZ').date()
-                                        self.logger.debug("create_date: %s",
-                                                          create_date)
                                         if filter_since > create_date:
                                             complete_results = True
                                             self.logger.debug(

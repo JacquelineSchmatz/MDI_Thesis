@@ -67,7 +67,7 @@ class DataMinePipeline(base.Request):
         forks = self.query_repository(["forks"],
                                       filters={
                                           "sort": "=newest"},
-                                      created_at_filt="months=12"
+                                      created_at_filt="months=6"
                                       )
         data = forks.get("forks")
         if data:
@@ -336,8 +336,8 @@ class DataMinePipeline(base.Request):
 
         query_functions = [
             # self.base_data_to_json ,
-            # self.forks_to_json,
-            self.pulls_issues_to_json,
+            self.forks_to_json,
+            # self.pulls_issues_to_json,
             # self.commits_to_json,
             # self.single_commits_to_json,
             # self.issue_comments_to_json,
@@ -390,14 +390,14 @@ def main():
     # start_date = date(2023, 8, 21)
     # start_date = date(2023, 8, 26)
     languages = ["php", "cpp", "python", "JavaScript", "java"]
-    languages = ["python", "JavaScript", "java"]  # Branches
+    # languages = ["python", "JavaScript", "java"]  # Branches
     # languages = ["JavaScript", "java"]
     # languages = ["cpp", "python", "JavaScript", "java"] # organizations
-    read_repository_json = True
+    read_repository_json = False
     curr_path = Path(os.path.dirname(__file__))
     csv_path = os.path.join(curr_path.parents[0],
                             "outputs/data/small_sample.csv", )
-    csv_path = ""
+    # csv_path = ""
     run_pipeline(start_date=start_date, languages=languages,
                  get_existing_repos=read_repository_json,
                  read_csv=csv_path)
