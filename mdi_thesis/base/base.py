@@ -18,6 +18,8 @@ from datetime import datetime
 from dateutil import relativedelta
 import bs4
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 import mdi_thesis.constants as constants
 import mdi_thesis.base.utils as utils
 
@@ -59,6 +61,11 @@ class Request:
         self.results_per_page = 100
         self.headers = {"Authorization": "token " + self.token}
         self.session = requests.Session()
+        retry = Retry(total=3, backoff_factor=0.5)  
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+
         self.response = requests.Response()
         self.selected_repos_dict = {}  # type: dict[int, dict]
         self.repository_dict = {}  # type: dict[int, list[dict[str, Any]]]
@@ -288,7 +295,7 @@ class Request:
         request_data_dict = {}
         for param, query in query_dict.items():
             if "organization_users" in queried_features:
-                time.sleep(10)
+                time.sleep(1)
             else:
                 time.sleep(60)
             param_list = self.get_repository_data(
@@ -373,8 +380,7 @@ class Request:
                                 "Get object Nr. %s of %s",
                                 object_counter, len(objects))
                             time.sleep(3)
-                        if object_counter == 1000:
-                            break
+
                         object_id = obj.get(object_key)
                         if object_id:
                             comment_dict = self.get_subfeatures(
@@ -391,7 +397,8 @@ class Request:
                             object_storage.update(comment_dict)
                         if isinstance(object_storage, List):
                             object_storage.append(comment_dict)
-
+                        if object_counter == 200:
+                            break
                     single_object_dict[repository] = object_storage
         else:
             single_object_dict = {}
@@ -469,8 +476,8 @@ class Request:
                     "?" +
                     str(filter_str) +
                     "per_page=" +
-                    str(self.results_per_page) +
-                    "&page=1"
+                    str(self.results_per_page)  # +
+                    # "&page=1"
                     )
                 self.logger.info("Object: %s - Start URL: %s",
                                  object_id, start_url)
@@ -553,7 +560,12 @@ class Request:
                                     self.logger.debug(
                                         "Connection failed at object %s:%s",
                                         object_id, response)
-                                    raise ConnectionError
+                                    self.logger.critical(
+                                        "ConnectionError: %s - Retry in 5 min.",
+                                        response.status_code
+                                    )
+                                    time.sleep(300)
+                                    continue
                                 elif response.status_code == 200:
                                     next_result = response.json()
                                     results.extend(next_result)
@@ -587,6 +599,13 @@ class Request:
                                 self.logger.error(
                                     "Attribute error %s", att_err)
                                 time.sleep(10)
+                            except ConnectionError as conn_err:
+                                self.logger.critical(
+                                    "ConnectionError: %s - Retry in 5 min.",
+                                    conn_err
+                                )
+                                time.sleep(300)
+                                continue
                         complete_results = True
                         continue
 
@@ -602,7 +621,7 @@ class Request:
             self.logger.info("Finished getting responses for all queries.")
             element_list = []  # element_list type: List[Dict[str, Any]]
             try:
-                if isinstance(results, list):
+                if results and isinstance(results, list):
                     for element in results:
                         element_dict = {}  # element_dict type: Dict[str, Any]
                         get_element = False
@@ -638,8 +657,8 @@ class Request:
                                             element_dict[feature] = \
                                                 element_desc
                                     else:
-                                        element_dict[feature] = element.get(
-                                            feature)
+                                        value = element.get(feature)
+                                        element_dict[feature] = value
                                 except AttributeError as att_error:
                                     error_msg = (
                                         "Encountered Attribute Error" +
@@ -650,11 +669,13 @@ class Request:
                                         element)
                                     self.logger.error(error_msg)
                             element_list.append(element_dict)
-                elif isinstance(results, dict):
+                elif results and isinstance(results, dict):
                     element_dict = {}  # element_dict type: Dict[str, Any]
                     for feature in feature_list:
                         element_dict[feature] = results.get(feature)
                     element_list = element_dict  # [element_dict]
+                else:
+                    element_list = []
                 repository_dict[object_id] = element_list
             except Exception as error:
                 self.logger.error("Error: %s", error)
@@ -887,7 +908,13 @@ class Request:
                                                 next_exists = False
                                         else:
                                             next_exists = False
-                            except requests.exceptions.ConnectionError:
+                            except requests.exceptions.ConnectionError \
+                                    as conn_err:
+                                self.logger.critical(
+                                    "ConnectionError: %s - Retry in 5 min.",
+                                    conn_err
+                                )
+                                time.sleep(300)
                                 continue
             dependents_results[repo] = {"total_dependents":
                                         total_dependents,
@@ -1166,7 +1193,7 @@ class Request:
         """
         subfeature_dict = {}
         url = object_url + "/" + str(object_id) + sub_url
-        url_param = "?per_page=100&page=1"
+        url_param = "?per_page=100"  # "?per_page=100&page=1"
         start_url = url + url_param
         self.logger.info("Getting page %s", start_url)
         response = requests.Response()
@@ -1188,7 +1215,12 @@ class Request:
                 self.logger.debug(
                     "Connection failed at object %s:%s",
                     object_id, response)
-                raise ConnectionError
+                self.logger.critical(
+                    "ConnectionError: %s - Retry in 5 min.",
+                    response.status_code
+                )
+                time.sleep(300)
+                continue
             elif response.status_code == 200:
                 self.logger.debug("Valid response at run %s", i)
                 break
@@ -1216,7 +1248,12 @@ class Request:
                         self.logger.debug(
                             "Connection failed at object %s:%s",
                             object_id, response)
-                        raise ConnectionError
+                        self.logger.critical(
+                            "ConnectionError: %s - Retry in 5 min.",
+                            response.status_code
+                        )
+                        time.sleep(300)
+                        continue
                     next_result = response.json()
                     if isinstance(results, List):
                         results.extend(next_result)

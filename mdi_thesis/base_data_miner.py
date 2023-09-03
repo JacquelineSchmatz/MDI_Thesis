@@ -90,8 +90,8 @@ class DataMinePipeline(base.Request):
                 "state": "=all",
                 "since": str("=") + filter_date_issues,
                 "sort": "=updated",
-                "order": "=desc"},
-            updated_at_filt="months=12"
+                "direction": "=desc"},
+            updated_at_filt="months=6"
                 )
         for feature, data in pulls_data.items():
             utils.dict_to_json(data=data,
@@ -102,7 +102,7 @@ class DataMinePipeline(base.Request):
         """
         Queries data to json file.
         """
-        filter_date = self.filter_date - relativedelta.relativedelta(years=1)
+        filter_date = self.filter_date - relativedelta.relativedelta(months=12)
         filter_date = filter_date.strftime('%Y-%m-%dT%H:%M:%SZ')
         commits = self.query_repository(
             ["commits"],
@@ -144,7 +144,7 @@ class DataMinePipeline(base.Request):
                 "since": str("=") + filter_date_issues,
                 "state": "=all",
                 "sort": "=updated",
-                "order": "=desc"
+                "direction": "=desc"
                 }, output_format="dict")
         utils.dict_to_json(data=issue_comments,
                            data_path=self.output_path,
@@ -251,12 +251,12 @@ class DataMinePipeline(base.Request):
                     repo)
                 repo_user_organizations[repo] = users.get("organization_users")
 
-                utils.dict_to_json(
-                    data=repo_user_organizations,
-                    data_path=self.output_path,
-                    feature=self.language + "_organization_users")
-                self.logger.debug("Getting contributor count.")
-                # Contributor_count
+            utils.dict_to_json(
+                data=repo_user_organizations,
+                data_path=self.output_path,
+                feature=self.language + "_organization_users")
+            self.logger.debug("Getting contributor count.")
+            # Contributor_count
             contributor_count = utils.get_contributors(
                 contributors_data,
                 check_contrib=True)
@@ -265,6 +265,21 @@ class DataMinePipeline(base.Request):
                 data=contributor_count,
                 data_path=self.output_path,
                 feature=self.language + "_contributor_count")
+            repo_organizations_count = {}
+            for repo, users in repo_user_organizations.items():
+                distinct_org = set()
+                for user, organizations in users.items():
+                    for org in organizations:
+                        if isinstance(org, dict):
+                            org_login = org.get("login")
+                            if org_login:
+                                distinct_org.add(org_login)
+                distinct_org = list(distinct_org)
+                repo_organizations_count[repo] = distinct_org
+            utils.dict_to_json(
+                data=repo_organizations_count,
+                data_path=self.output_path,
+                feature=self.language + "_organizations")
 
     def search_to_json(self):
         """
@@ -336,18 +351,20 @@ class DataMinePipeline(base.Request):
 
         query_functions = [
             # self.base_data_to_json ,
-            self.forks_to_json,
+            # self.forks_to_json,
             # self.pulls_issues_to_json,
             # self.commits_to_json,
             # self.single_commits_to_json,
-            # self.issue_comments_to_json,
+            self.issue_comments_to_json,
             # self.upstream_dependencies_to_json,
             # self.downstream_dependencies_to_json,
             # self.branches_to_json,
             # self.contributors_to_json
         ]
         return query_functions
-#  Rerun user_organization for csv, pulls_issues for all languages, issue_comments for all languages
+#  
+# Rerun branches (reduced) if time rerun pulls for forks, if not remove fork metrics
+
 
 def run_pipeline(start_date, languages, get_existing_repos, read_csv=""):
     """
@@ -390,14 +407,11 @@ def main():
     # start_date = date(2023, 8, 21)
     # start_date = date(2023, 8, 26)
     languages = ["php", "cpp", "python", "JavaScript", "java"]
-    # languages = ["python", "JavaScript", "java"]  # Branches
-    # languages = ["JavaScript", "java"]
-    # languages = ["cpp", "python", "JavaScript", "java"] # organizations
-    read_repository_json = False
+    read_repository_json = True
     curr_path = Path(os.path.dirname(__file__))
     csv_path = os.path.join(curr_path.parents[0],
                             "outputs/data/small_sample.csv", )
-    # csv_path = ""
+    csv_path = ""
     run_pipeline(start_date=start_date, languages=languages,
                  get_existing_repos=read_repository_json,
                  read_csv=csv_path)

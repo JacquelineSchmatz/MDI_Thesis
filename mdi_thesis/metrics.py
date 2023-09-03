@@ -7,6 +7,7 @@ Description: Formulas for metric calculation.
 from typing import Dict, Tuple, Union
 import json
 import collections
+import math
 from datetime import date, datetime, timedelta
 from dateutil import relativedelta
 import numpy as np
@@ -56,7 +57,7 @@ def maturity_level(base_data: Dict, filter_date: date) -> Dict[int, int]:
             age_score[repo] = score
 
         score = 0
-        for rep, data in issue_data.items():
+        for repo, data in issue_data.items():
             nr_of_issues = len(data)
             if nr_of_issues > 1000:
                 score = 1
@@ -69,7 +70,7 @@ def maturity_level(base_data: Dict, filter_date: date) -> Dict[int, int]:
             elif nr_of_issues <= 50:
                 score = 5
             score = score/5
-            issue_score[rep] = score
+            issue_score[repo] = score
 
         for repo, releases in release_data.items():
             if releases:
@@ -81,7 +82,6 @@ def maturity_level(base_data: Dict, filter_date: date) -> Dict[int, int]:
                 score = 1
             score = score/5
             release_score[repo] = score
-
         if age_score:
             for repo, score in age_score.items():
                 score_sum = score + issue_score[repo] + release_score[repo]
@@ -132,22 +132,30 @@ def technical_fork(base_data: Dict) -> Dict[int, Dict[str, Union[int, float]]]:
     :return: Repositories with fork metrics and information.
     """
     fork_data = base_data.get("forks")
+    pulls_data = base_data.get("pull_requests")
     fork_results = {}
-    if fork_data:
+    if fork_data and pulls_data:
         for repo, data in fork_data.items():
             created_at_times = []
             forks_contributed = 0
             forks_not_contributed = 0
-
+            pulls = pulls_data.get(repo)
             for fork in data:
                 fork_created_at = fork.get("created_at")
                 fork_date = datetime.strptime(
                     fork_created_at, '%Y-%m-%dT%H:%M:%SZ')
                 created_at_times.append(fork_date)
-                if fork.get("published_at"):
+                fork_id = fork.get("id")
+                fork_contributed = False
+                if pulls:
+                    if fork_id in pulls:
+                        fork_contributed = True
+
+                if fork_contributed:
                     forks_contributed += 1
                 else:
                     forks_not_contributed += 1
+
             if forks_not_contributed > 0:
                 contributed_ratio = (forks_contributed /
                                      (forks_contributed +
@@ -185,6 +193,7 @@ def technical_fork(base_data: Dict) -> Dict[int, Dict[str, Union[int, float]]]:
                                   not_contributed_ratio,
                                   "average_forks_created_per_week":
                                   average_per_week}
+
     return fork_results
 
 
@@ -197,8 +206,14 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
     scores_per_repo = {}
     # created_since, updated_since
     repo_data = base_data.get("repository")
-
-    if repo_data:
+    contributor_data = base_data.get("contributors")
+    commits = base_data.get("commits")
+    release_data = base_data.get("release")
+    issues_data = base_data.get("issue")
+    issue_comments = base_data.get("issue_comments")
+    dependents = base_data.get("downstream_dependencies")
+    if repo_data and contributor_data and commits and release_data \
+            and issues_data and issue_comments and dependents:
         for repo, data in repo_data.items():
             created_at = data.get("created_at")
             created_at = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%SZ')
@@ -212,20 +227,17 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
                 diff_updated_today.years*12)
             scores_per_repo[repo] = {"created_since": months,
                                      "updated_since": diff_updated_today}
-    # contributor_count
-    contributor_data = base_data.get("contributors")
-    contributor_count = utils.get_contributors(
-        contributors_data=contributor_data, check_contrib=True)
-    for repo, cont_count in contributor_count.items():
-        scores_per_repo[repo].update({"contributor_count": cont_count})
-    # org_count
-    repo_organizations = base_data.get("repo_organizations")
-    if repo_organizations:
-        for repo, org_count in repo_organizations.items():
-            scores_per_repo[repo].update({"org_count": org_count})
-    # commit_frequency
-    commits = base_data.get("commits")
-    if commits:
+        # contributor_count
+        contributor_count = utils.get_contributors(
+            contributors_data=contributor_data, check_contrib=True)
+        for repo, cont_count in contributor_count.items():
+            scores_per_repo[repo].update({"contributor_count": cont_count})
+        # org_count
+        repo_organizations = base_data.get("organizations_count")
+        if repo_organizations:
+            for repo, org_count in repo_organizations.items():
+                scores_per_repo[repo].update({"org_count": len(org_count)})
+        # commit_frequency
         for repo, data in commits.items():
             repo_commit_dates = []
             for commit in data:
@@ -254,16 +266,12 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
                 average_per_week = 0
             scores_per_repo[repo].update(
                 {"commit_frequency": average_per_week})
-    # recent_releases_count
-    release_data = base_data.get("release")
-    if release_data:
+        # recent_releases_count
         for repo, releases in release_data.items():
             num_releases = len(releases)
             scores_per_repo[repo].update(
                 {"recent_releases_count": num_releases})
-    # closed_issues_count & updated_issues_count
-    issues_data = base_data.get("issue")
-    if issues_data:
+        # closed_issues_count & updated_issues_count
         for repo, issues_list in issues_data.items():
             closed_issues = 0
             updated_issues = 0
@@ -287,9 +295,7 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
             scores_per_repo[repo].update(
                 {"closed_issues_count": closed_issues,
                  "updated_issues_count": updated_issues})
-    # comment_frequency
-    issue_comments = base_data.get("issue_comments")
-    if issue_comments:
+        # comment_frequency
         for repo, issues_dict in issue_comments.items():
             comment_count_list = []
             for issue, comments in issues_dict.items():
@@ -309,13 +315,11 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
                 avg_comment_count = 0
             scores_per_repo[repo].update(
                 {"comment_frequency": avg_comment_count})
-    # dependents_count
-    dependents = base_data.get("downstream_dependencies")
-    if dependents:
+        # dependents_count
         for repo, dep_count in dependents.items():
             scores_per_repo[repo].update(
                 {"dependents_count": dep_count.get("total_dependents")})
-
+    
     criticality_score_per_repo = {}
     weights_json = open(
         r"mdi_thesis\criticality_score_weights.json",
@@ -328,7 +332,11 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
     for repo, param in scores_per_repo.items():
         form_1 = 1/weight_sum
         sum_alpha = 0
+        print(repo)
+        print("---------------")
         for param_name, value in param.items():
+            print(param_name)
+            print(value)
             log_1 = np.log(1 + value)
             max_threshold = weights.get(param_name).get("max_threshold")
             log_2 = np.log(1 + max(value, max_threshold))
@@ -341,6 +349,7 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
             sum_alpha += res_1
         res_2 = round((form_1*sum_alpha), 2) * 100
         criticality_score_per_repo[repo] = res_2
+
     return criticality_score_per_repo
 
 
@@ -436,7 +445,7 @@ def project_velocity(base_data: Dict) -> Dict[int, Dict[str, float]]:
                     created_at, '%Y-%m-%dT%H:%M:%SZ')
                 if state == "open":
                     open_issues += 1
-                if state == "closed":
+                elif state == "closed":
                     closed_issues += 1
                     closed_at = issue.get("closed_at")
                     if closed_at:
@@ -535,7 +544,8 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
     issues_infos = {}
     issues_data = base_data.get("issue")
     issue_comments = base_data.get("issue_comments")
-    if issues_data:
+
+    if issues_data and issue_comments:
         for repo, data in issues_data.items():
             closed_issues = 0
             open_issues = 0
@@ -563,11 +573,13 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
                     issue_number = issue.get("number")
                     # Issue comments are only counted if comments have an id
                     # Comments without an id are not created by an user
-                    try:
-                        total_comments = 0
-                        if issue_comments:
-                            for comment in issue_comments.get(
-                                    repo).get(issue_number):
+                    total_comments = 0
+                    issue_comments_repo = issue_comments.get(repo)
+                    first_response_time = None
+                    if issue_comments_repo:
+                        comments = issue_comments_repo.get(issue_number)
+                        if comments:
+                            for comment in comments:
                                 comment_id = comment.get("id")
                                 if comment_id:
                                     total_comments += 1
@@ -587,14 +599,7 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
                                 first_response_time = first_response_time.days
                                 issue_first_response_times.append(
                                     first_response_time)
-                        else:
-                            first_response_time = None
-                    except TypeError:
-                        continue
-                    except KeyError:
-                        continue
-                    except IndexError:
-                        continue
+
                     # Count states
                     if state == "open":
                         open_issues += 1
@@ -665,6 +670,7 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
                 avg_first_response_time_days,
                 "ratio_open_total": ratio_open,
                 "ratio_closed_total": ratio_closed}
+
     return issues_infos
 
 
@@ -682,39 +688,42 @@ def support_rate(base_data: Dict) -> Dict[int, float]:
     support_rate_results = {}
     # All issues required to get information about pulls in issue data
     issues_pulls = base_data.get("issue")
-    issue_flag = {}
-    if issues_pulls:
+    issue_comments = base_data.get("issue_comments")
+    
+    if issues_pulls and issue_comments:
         for repo, data in issues_pulls.items():
+            issue_flag = {}
             for issue in data:
                 pull_request_id = issue.get("pull_request")
+
                 is_pull_request = bool(pull_request_id)
                 issue_number = issue.get("number")
-                issue_flag[issue_number] = is_pull_request
-    issue_comments = base_data.get("issue_comments")
-    if issue_comments:
-        for repo, data in issue_comments.items():
+                issue_flag[str(issue_number)] = is_pull_request
+            issue_comment_data = issue_comments.get(repo)
             issues_with_response = 0
             total_issues = 0
             total_pulls = 0
             pulls_with_response = 0
-            for issue, comments in data.items():
-                # If issue is no pull
-                if not issue_flag.get(issue):
-                    total_issues += 1
-                    if comments:
-                        for comment in comments:
-                            comment_id = comment.get("id")
-                            if comment_id:
-                                issues_with_response += 1
-                                break
-                else:
-                    total_pulls += 1
-                    if comments:
-                        for comment in comments:
-                            comment_id = comment.get("id")
-                            if comment_id:
-                                pulls_with_response += 1
-                                break
+            if issue_comment_data:
+                for issue, comments in issue_comment_data.items():
+                    # If issue is no pull
+                    if not issue_flag.get(issue):
+                        # print("IS NO PULL")
+                        total_issues += 1
+                        if comments:
+                            for comment in comments:
+                                comment_id = comment.get("id")
+                                if comment_id:
+                                    issues_with_response += 1
+                                    break
+                    else:
+                        total_pulls += 1
+                        if comments:
+                            for comment in comments:
+                                comment_id = comment.get("id")
+                                if comment_id:
+                                    pulls_with_response += 1
+                                    break
             if total_issues > 0:
                 issue_support = issues_with_response / total_issues
             else:
@@ -725,7 +734,6 @@ def support_rate(base_data: Dict) -> Dict[int, float]:
                 pulls_support = 0
             support_rate_val = ((issue_support + pulls_support)/2)*100
             support_rate_results[repo] = support_rate_val
-
     return support_rate_results
 
 
@@ -884,6 +892,7 @@ def contributions_distributions(base_data: Dict) -> Dict[
             for contributor, files in committer_per_file.items():
                 ratio_of_files = (len(files)) / total_files
                 rof_per_contributor.append(ratio_of_files)
+
             rof_per_contributor.sort(reverse=True)
             total_file_contributions = sum(rof_per_contributor)
             total_file_contributer = len(rof_per_contributor)
@@ -895,7 +904,7 @@ def contributions_distributions(base_data: Dict) -> Dict[
             for contrib, contributions in enumerate(rof_per_contributor,
                                                     start=1):
                 running_contributions += contributions
-                if contrib == twenty_percent:
+                if contrib == math.ceil(twenty_percent):
                     pareto_ist = running_contributions
                     pareto_ist_percentage = (pareto_ist /
                                              total_file_contributions)
@@ -919,23 +928,33 @@ def contributions_distributions(base_data: Dict) -> Dict[
             for commit in commits:
                 contributor = None
                 co_author = None
-                try:
-                    committer_email = commit.get(
-                        "commit").get("committer").get("email")
-                    author_email = commit.get(
-                        "commit").get("author").get("email")
-                    message = commit.get("commit").get("message")
+                commit_elem = commit.get("commit")
+
+                if commit_elem:
+                    verification = commit_elem.get("verification")
+                    if verification:
+                        verified = verification.get("verified")
+                        if verified:
+                            committer = commit_elem.get("author")
+                        else:
+                            committer = commit_elem.get("committer")
+                    else:
+                        committer = commit_elem.get("committer")
+                    if not committer:
+                        no_committer += 1
+                    else:
+                        contributor = committer.get("email")
+                        # author_email = commit_elem.get("author").get("email")
+                    message = commit_elem.get("message")
                     co_author_line = re.findall(r"Co-authored-by:(.*?)>",
                                                 message)
+
                     for value in co_author_line:
                         co_author = value.split("<")[-1]
                         total_committer.append(co_author)
-                    if committer_email != author_email:
-                        contributor = author_email
-                    else:
-                        contributor = committer_email
-                except AttributeError:
-                    no_committer += 1
+
+                else:
+                    print(f"No commit: {commit}")
                 total_committer.append(contributor)
             committer_counter = collections.Counter(total_committer).values()
             commits_sorted = sorted(committer_counter, reverse=True)
@@ -951,7 +970,7 @@ def contributions_distributions(base_data: Dict) -> Dict[
             prot_diff = 0
             for contrib, contributions in enumerate(commits_sorted, start=1):
                 running_contributions += contributions
-                if contrib == twenty_percent:
+                if contrib == math.ceil(twenty_percent):
                     pareto_ist = running_contributions
                     pareto_ist_percentage = pareto_ist / total_contributions
                     prot_diff = np.absolute((0.8)-pareto_ist_percentage) * 100
@@ -1114,7 +1133,6 @@ def churn(base_data) -> Dict[int, float]:
         lines_added = 0
         lines_deleted = 0
         for features in commit.values():
-            # print(features)
             for row in features:
                 stats = row.get("stats")
                 additions = stats.get("additions")

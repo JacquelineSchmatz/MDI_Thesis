@@ -10,7 +10,8 @@ import json
 import os
 import sys
 import inspect
-from typing import Dict, List, Any, Union
+from pathlib import Path
+from typing import Dict, List
 from datetime import date, datetime
 from dateutil import relativedelta
 import mdi_thesis.base.base as base
@@ -32,6 +33,8 @@ class MetricsPipeline():
         metrics_objective_mapping = open(
             "mdi_thesis/metrics_data_mapping.json", encoding="utf-8")
         self.metrics_objective_mapping = json.load(metrics_objective_mapping)
+        self.metric_periods = {}
+        self.metric_objective_periods = {}
 
         parent_dir = os.path.abspath('.')
         if parent_dir not in sys.path:
@@ -66,7 +69,8 @@ class MetricsPipeline():
 
     def filter_data(self, data: Dict,
                     filter_parameter: str,
-                    filter_period: date):
+                    filter_period: str,
+                    obj_language: str):
         """
         Filters data according to parameter.
         :param data: Data to be filtered
@@ -78,11 +82,18 @@ class MetricsPipeline():
         self.logger.info("Filtering data by Parameter: %s and Period %s",
                          filter_parameter, filter_period)
         filtered_data = {}
-        filter_date = (
-            self.filter_date -
-            relativedelta.relativedelta(filter_period))
-        if isinstance(filter_date, datetime):
-            filter_date = filter_date.date()
+        filter_period = filter_period.split("=")
+        attributes = {str(filter_period[0]): int(filter_period[1])}
+        filter_start_date = (self.filter_date -
+                        relativedelta.relativedelta(**attributes))
+        # filter_start_date = (
+        #     self.filter_date -
+        #     relativedelta.relativedelta(filter_period))
+        if isinstance(filter_start_date, datetime):
+            filter_start_date = filter_start_date.date()
+        print(filter_start_date)
+        print(self.filter_date)
+        date_range = []
         for repo, content in data.items():
             content_filt = None
             if isinstance(content, List):
@@ -95,7 +106,11 @@ class MetricsPipeline():
                             '%Y-%m-%dT%H:%M:%SZ')
                         if isinstance(element_date, datetime):
                             element_date = element_date.date()
-                        if filter_date > element_date:
+                        # if filter_start_date > element_date:
+                        #     content_filt.append(element)
+                        if filter_start_date <= element_date and \
+                                element_date <= self.filter_date:
+                            date_range.append(element_date)
                             content_filt.append(element)
                     else:
                         commit = element.get("commit")
@@ -107,8 +122,12 @@ class MetricsPipeline():
                                 '%Y-%m-%dT%H:%M:%SZ')
                             if isinstance(element_date, datetime):
                                 element_date = element_date.date()
-                            if filter_date > element_date:
-                                content_filt.append(element)
+                            # if filter_start_date > element_date:
+                            #     content_filt.append(element)
+                                if filter_start_date <= element_date and \
+                                        element_date <= self.filter_date:
+                                    date_range.append(element_date)
+                                    content_filt.append(element)
 
             if isinstance(content, Dict):
                 content_filt = {}
@@ -118,16 +137,20 @@ class MetricsPipeline():
                         if element_date:
                             element_date = datetime.strptime(
                                 element_date, '%Y-%m-%dT%H:%M:%SZ')
-                            filter_date = (
-                                self.filter_date -
-                                relativedelta.relativedelta(
-                                    filter_period))
-                            if isinstance(filter_date, datetime):
-                                filter_date = filter_date.date()
+                            # filter_date = (
+                            #     self.filter_date -
+                            #     relativedelta.relativedelta(
+                            #         filter_period))
+                            # if isinstance(filter_date, datetime):
+                            #     filter_date = filter_date.date()
                             if isinstance(element_date, datetime):
                                 element_date = element_date.date()
-                            if filter_date > element_date:
+                            # if filter_date > element_date:
+                            #     content_filt[element_id] = element
+                            if filter_start_date <= element_date and \
+                                    element_date <= self.filter_date:
                                 content_filt[element_id] = element
+                                date_range.append(element_date)
                         else:
                             commit = element.get("commit")
                             if commit:
@@ -139,24 +162,33 @@ class MetricsPipeline():
                                         '%Y-%m-%dT%H:%M:%SZ')
                                     if isinstance(element_date, datetime):
                                         element_date = element_date.date()
-                                    if filter_date > element_date:
+                                    # if filter_start_date > element_date:
+                                    #     content_filt[element_id] = element
+                                    if filter_start_date <= element_date and \
+                                            element_date <= self.filter_date:
                                         content_filt[element_id] = element
+                                        date_range.append(element_date)
                     elif isinstance(element, List):
                         for elem in element:
                             element_date = elem.get(filter_parameter)
                             if element_date:
                                 element_date = datetime.strptime(
                                     element_date, '%Y-%m-%dT%H:%M:%SZ')
-                                filter_date = (
-                                    self.filter_date -
-                                    relativedelta.relativedelta(
-                                        filter_period))
-                                if isinstance(filter_date, datetime):
-                                    filter_date = filter_date.date()
+                                # filter_date = (
+                                #     self.filter_date -
+                                #     relativedelta.relativedelta(
+                                #         filter_period))
+                                # if isinstance(filter_date, datetime):
+                                #     filter_date = filter_date.date()
                                 if isinstance(element_date, datetime):
                                     element_date = element_date.date()
-                                if filter_date > element_date:
+                                # if filter_date > element_date:
+                                #     content_filt[element_id] = element
+                                if filter_start_date <= element_date and \
+                                        element_date <= self.filter_date:
                                     content_filt[element_id] = element
+                                    date_range.append(element_date)
+
                             else:
                                 commit = elem.get("commit")
                                 if commit:
@@ -166,11 +198,30 @@ class MetricsPipeline():
                                         element_date = datetime.strptime(
                                             element_date,
                                             '%Y-%m-%dT%H:%M:%SZ')
-                                        if isinstance(element_date, datetime):
+                                        if isinstance(
+                                                element_date, datetime):
                                             element_date = element_date.date()
-                                        if filter_date > element_date:
+                                        # if filter_start_date > element_date:
+                                        #     content_filt[element_id] = element
+                                        if filter_start_date <= \
+                                                element_date and \
+                                                element_date <= \
+                                                self.filter_date:
                                             content_filt[element_id] = element
+                                            date_range.append(element_date)
             filtered_data[repo] = content_filt
+        if date_range:
+            min_date = min(date_range)
+            min_date = min_date.strftime("%Y-%m-%d")
+            max_date = max(date_range)
+            max_date = max_date.strftime("%Y-%m-%d")
+        else:
+            min_date = None
+            max_date = None
+
+        self.metric_periods["min_date"] = min_date
+        self.metric_periods["max_date"] = max_date
+
         return filtered_data
 
     def prep_data(self, language: str,
@@ -183,6 +234,7 @@ class MetricsPipeline():
 
         prep_data = {}
         for objective, filters in objectives.items():
+            self.metric_periods = {}
             self.logger.info("Data Preparation for %s and objective %s",
                              language, objective)
             objective_dict = {}
@@ -203,12 +255,16 @@ class MetricsPipeline():
                         filtered_data = self.filter_data(
                             data=data_dict,
                             filter_parameter=param,
-                            filter_period=period)
+                            filter_period=period,
+                            obj_language=objective + "_" + language)
                         prep_data[objective] = filtered_data
+                        self.logger.debug("Adding dict %s - to objective %s",
+                                          self.metric_periods, objective)
+                        
                     else:
                         self.logger.debug("Getting objective %s", objective)
                         prep_data[objective] = data_dict
-
+                    self.metric_objective_periods[objective] = self.metric_periods
         return prep_data
 
     def run_metrics_to_json(self):
@@ -217,11 +273,14 @@ class MetricsPipeline():
         """
         self.logger.info("Starting calculating metrics to json files.")
         languages = ["csv"]
-        for lang in self.languages:
-        # for lang in languages:
+        # for lang in self.languages:
+        metric_period_results = {}
+        metric_period_languages = {}
+        for lang in languages:
             self.logger.debug("Getting language %s", lang)
             metrics_results = {}
             for metric, objectives in self.metrics_objective_mapping.items():
+                self.metric_objective_periods = {}
                 try:
                     self.logger.info("Getting metric %s", metric)
                     data = self.prep_data(language=lang, objectives=objectives)
@@ -241,6 +300,7 @@ class MetricsPipeline():
                     else:
                         self.logger.critical("No data for metric %s", metric)
                     metrics_results[metric] = metric_return
+                    metric_period_results[metric] = self.metric_objective_periods
                 except AttributeError as att_err:
                     self.logger.error("Attribute Error: %s\n", att_err)
                     raise
@@ -248,7 +308,15 @@ class MetricsPipeline():
                                data_path=self.output_path,
                                feature=lang + "_metrics"
                                )
+            metric_period_languages[lang] = metric_period_results
             self.results_dict[lang] = metrics_results
+        curr_path = Path(os.path.dirname(__file__))
+        output_path = os.path.join(
+            curr_path.parents[0], "outputs/results/", )
+        # print(self.metric_periods)
+        utils.dict_to_json(data=metric_period_languages,
+                           data_path=output_path,
+                           feature="metric_date_ranges")
 
 
 def run_pipeline(start_date: date):
@@ -263,7 +331,8 @@ def main():
     """
     Set start for pipeline filters
     """
-    start_date = date(2023, 8, 27)
+    # start_date = date(2023, 8, 27)
+    start_date = date(2023, 8, 23)
     run_pipeline(start_date=start_date)
 
 

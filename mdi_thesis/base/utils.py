@@ -169,7 +169,6 @@ def get_contributor_per_files(commit):
                 for value in co_author_line:
                     co_author = value.split("<")[-1]
                     co_authors.add(co_author)
-                    # ntotal_committer.append(co_author)
                 if committer_email != author_email:
                     contributor = author_email
                 else:

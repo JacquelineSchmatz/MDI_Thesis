@@ -8,34 +8,34 @@
         "repository": null
     },
     "technical_fork": {
-        "forks": ["created_at", "months=12"]
+        "forks": ["created_at", "months=6"]
     },
     "criticality_score": {
         "repository": null,
         "contributors": null,
-        "repo_organizations": null,
-        "commits": null,
+        "organizations_count": null,
+        "commits": ["updated_at", "months=12"],
         "release": ["published_at", "months=12"],
         "issue": ["updated_at", "days=90"],
         "issue_comments": ["updated_at", "days=90"],
         "downstream_dependencies": null
     },
     "pull_requests": {
-        "pull_requests": null
+        "pull_requests": ["updated_at", "months=6"]
     },
     "project_velocity": {
-        "issue": null
+        "issue": ["updated_at", "months=6"]
     },
     "github_community_health_percentage": {
         "community_health": null
     },
     "issues": {
         "issue": ["updated_at", "days=90"],
-        "issue_comments": ["updated_at", "days=90"]
+        "issue_comments": null
     },
     "support_rate": {
         "issue": ["updated_at", "days=90"],
-        "issue_comments": ["updated_at", "days=90"]
+        "issue_comments": null
     },
     "code_dependency": {
         "upstream_dependencies": null,

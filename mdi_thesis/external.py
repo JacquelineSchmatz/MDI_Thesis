@@ -9,6 +9,7 @@ def get_osi_json():
     Use licenseId to check for matching entries
     with retrieved data from GitHub to check,
     if license is OSI approved (isOsiApproved)
+    URL = https://raw.githubusercontent.com/spdx/license-list-data/master/json/licenses.json
     """
     url = ("https://raw.githubusercontent.com/" +
     "spdx/license-list-data/master/json/licenses.json")

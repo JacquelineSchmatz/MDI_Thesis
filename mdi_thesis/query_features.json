@@ -78,7 +78,6 @@
                 "created_at",
                 "updated_at",
                 "closed_at",
-                "pushed_at",
                 "merged_at"
             ]
         }
