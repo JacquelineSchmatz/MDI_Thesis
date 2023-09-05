@@ -397,7 +397,7 @@ class Request:
                             object_storage.update(comment_dict)
                         if isinstance(object_storage, List):
                             object_storage.append(comment_dict)
-                        if object_counter == 200:
+                        if object_counter == 100:
                             break
                     single_object_dict[repository] = object_storage
         else:

@@ -125,47 +125,26 @@ def osi_approved_license(base_data: Dict) -> Dict[int, bool]:
 
 def technical_fork(base_data: Dict) -> Dict[int, Dict[str, Union[int, float]]]:
     """
-    Contributing forks are considered as forks which have been pushed to
-    the orgin project.
+    Total number of forks and average creation time.
     :param data_object: Request object, required to gather data
     of already selected repositories.
     :return: Repositories with fork metrics and information.
     """
     fork_data = base_data.get("forks")
-    pulls_data = base_data.get("pull_requests")
     fork_results = {}
-    if fork_data and pulls_data:
+    if fork_data:
         for repo, data in fork_data.items():
             created_at_times = []
-            forks_contributed = 0
-            forks_not_contributed = 0
-            pulls = pulls_data.get(repo)
+            fork_nr = 0
             for fork in data:
                 fork_created_at = fork.get("created_at")
                 fork_date = datetime.strptime(
                     fork_created_at, '%Y-%m-%dT%H:%M:%SZ')
                 created_at_times.append(fork_date)
                 fork_id = fork.get("id")
-                fork_contributed = False
-                if pulls:
-                    if fork_id in pulls:
-                        fork_contributed = True
+                if fork_id:
+                    fork_nr += 1
 
-                if fork_contributed:
-                    forks_contributed += 1
-                else:
-                    forks_not_contributed += 1
-
-            if forks_not_contributed > 0:
-                contributed_ratio = (forks_contributed /
-                                     (forks_contributed +
-                                      forks_not_contributed)) * 100
-                not_contributed_ratio = (forks_not_contributed /
-                                         (forks_contributed +
-                                          forks_not_contributed)) * 100
-            else:
-                contributed_ratio = None
-                not_contributed_ratio = None
             if created_at_times:
                 # Sort the datetime list
                 created_at_times.sort()
@@ -182,18 +161,9 @@ def technical_fork(base_data: Dict) -> Dict[int, Dict[str, Union[int, float]]]:
             else:
                 average_per_week = None
             fork_results[repo] = {"total_forks":
-                                  (forks_contributed + forks_not_contributed),
-                                  "forks_contributed":
-                                  forks_contributed,
-                                  "forks_not_contributed":
-                                  forks_not_contributed,
-                                  "forks_contributed_ratio":
-                                  contributed_ratio,
-                                  "forks_not_contributed_ratio":
-                                  not_contributed_ratio,
+                                  fork_nr,
                                   "average_forks_created_per_week":
                                   average_per_week}
-
     return fork_results
 
 
@@ -319,7 +289,7 @@ def criticality_score(base_data: Dict, filter_date: date) -> Dict[int, float]:
         for repo, dep_count in dependents.items():
             scores_per_repo[repo].update(
                 {"dependents_count": dep_count.get("total_dependents")})
-    
+
     criticality_score_per_repo = {}
     weights_json = open(
         r"mdi_thesis\criticality_score_weights.json",
@@ -577,15 +547,16 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
                     issue_comments_repo = issue_comments.get(repo)
                     first_response_time = None
                     if issue_comments_repo:
-                        comments = issue_comments_repo.get(issue_number)
+                        comments = issue_comments_repo.get(str(issue_number))
                         if comments:
                             for comment in comments:
                                 comment_id = comment.get("id")
                                 if comment_id:
                                     total_comments += 1
                             comment_count_list.append(total_comments)
-                            first_comment_date = issue_comments.get(
-                                repo).get(issue_number)[0].get("created_at")
+                            # first_comment_date = issue_comments.get(
+                            #     repo).get(issue_number)[0].get("created_at")
+                            first_comment_date = comments[0].get("created_at")
                             if first_comment_date:
                                 first_comment_date = datetime.strptime(
                                     first_comment_date,
@@ -634,10 +605,7 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
                 average_per_week = round(np.mean(elements_per_week))
             else:
                 average_per_week = None
-            if issues_created_since:
-                new_ratio = (len(issues_created_since) / total_issues) * 100
-            else:
-                new_ratio = None
+         
             if issue_close_times:
                 avg_date_diff = round(np.mean(issue_close_times))
             else:
@@ -654,9 +622,11 @@ def issues(base_data: Dict, filter_date: date) -> Dict[int, Dict[str, float]]:
             if total_issues:
                 ratio_open = (open_issues / total_issues) * 100
                 ratio_closed = (closed_issues / total_issues) * 100
+                new_ratio = (len(issues_created_since) / total_issues) * 100
             else:
                 ratio_open = None
                 ratio_closed = None
+                new_ratio = None
             issues_infos[repo] = {
                 "total_issues": total_issues,
                 "open_issues": open_issues,
@@ -752,19 +722,18 @@ def code_dependency(base_data: Dict) -> Dict[int, Dict]:
     dependencies = {}
     upstream_dependencies = base_data.get("upstream_dependencies")
     downstream_dependencies = base_data.get("downstream_dependencies")
-    if downstream_dependencies:
+    if downstream_dependencies and upstream_dependencies:
         for repo, data in downstream_dependencies.items():
             total_upstream = 0
-            if upstream_dependencies:
-                for upstream_dep in upstream_dependencies.get(repo):
-                    # Python dependencies may contain only value "-"
-                    if upstream_dep != "-":
-                        total_upstream += 1
-                total_downstream = data.get("total_dependents")
-                visible_downstream = data.get("visible_dependents")
-                dependencies[repo] = {"total_upstream": total_upstream,
-                                      "total_downstream": total_downstream,
-                                      "visible_downstream": visible_downstream}
+            for upstream_dep in upstream_dependencies.get(repo):
+                # Python dependencies may contain only value "-"
+                if upstream_dep != "-":
+                    total_upstream += 1
+            total_downstream = data.get("total_dependents")
+            visible_downstream = data.get("visible_dependents")
+            dependencies[repo] = {"total_upstream": total_upstream,
+                                  "total_downstream": total_downstream,
+                                  "visible_downstream": visible_downstream}
     return dependencies
 
 

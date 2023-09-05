@@ -47,7 +47,7 @@ class MetricsPipeline():
         Stores results in dictionary by objective and language.
         """
         parent_dir = os.path.abspath('.')
-        if parent_dir not in sys.path:
+        if parent_dir not in sys.path: 
             sys.path.append(parent_dir)
         combined_dict = {}
         path = os.path.join(parent_dir, "outputs", "data")
@@ -69,8 +69,7 @@ class MetricsPipeline():
 
     def filter_data(self, data: Dict,
                     filter_parameter: str,
-                    filter_period: str,
-                    obj_language: str):
+                    filter_period: str):
         """
         Filters data according to parameter.
         :param data: Data to be filtered
@@ -137,16 +136,8 @@ class MetricsPipeline():
                         if element_date:
                             element_date = datetime.strptime(
                                 element_date, '%Y-%m-%dT%H:%M:%SZ')
-                            # filter_date = (
-                            #     self.filter_date -
-                            #     relativedelta.relativedelta(
-                            #         filter_period))
-                            # if isinstance(filter_date, datetime):
-                            #     filter_date = filter_date.date()
                             if isinstance(element_date, datetime):
                                 element_date = element_date.date()
-                            # if filter_date > element_date:
-                            #     content_filt[element_id] = element
                             if filter_start_date <= element_date and \
                                     element_date <= self.filter_date:
                                 content_filt[element_id] = element
@@ -162,8 +153,6 @@ class MetricsPipeline():
                                         '%Y-%m-%dT%H:%M:%SZ')
                                     if isinstance(element_date, datetime):
                                         element_date = element_date.date()
-                                    # if filter_start_date > element_date:
-                                    #     content_filt[element_id] = element
                                     if filter_start_date <= element_date and \
                                             element_date <= self.filter_date:
                                         content_filt[element_id] = element
@@ -174,21 +163,12 @@ class MetricsPipeline():
                             if element_date:
                                 element_date = datetime.strptime(
                                     element_date, '%Y-%m-%dT%H:%M:%SZ')
-                                # filter_date = (
-                                #     self.filter_date -
-                                #     relativedelta.relativedelta(
-                                #         filter_period))
-                                # if isinstance(filter_date, datetime):
-                                #     filter_date = filter_date.date()
                                 if isinstance(element_date, datetime):
                                     element_date = element_date.date()
-                                # if filter_date > element_date:
-                                #     content_filt[element_id] = element
                                 if filter_start_date <= element_date and \
                                         element_date <= self.filter_date:
                                     content_filt[element_id] = element
                                     date_range.append(element_date)
-
                             else:
                                 commit = elem.get("commit")
                                 if commit:
@@ -201,8 +181,6 @@ class MetricsPipeline():
                                         if isinstance(
                                                 element_date, datetime):
                                             element_date = element_date.date()
-                                        # if filter_start_date > element_date:
-                                        #     content_filt[element_id] = element
                                         if filter_start_date <= \
                                                 element_date and \
                                                 element_date <= \
@@ -224,8 +202,7 @@ class MetricsPipeline():
 
         return filtered_data
 
-    def prep_data(self, language: str,
-                  objectives: Dict):
+    def prep_data(self, language: str, objectives: Dict):
         """
         Collects required data of one language and multiple objectives.
         :param language: Programming language
@@ -255,12 +232,10 @@ class MetricsPipeline():
                         filtered_data = self.filter_data(
                             data=data_dict,
                             filter_parameter=param,
-                            filter_period=period,
-                            obj_language=objective + "_" + language)
+                            filter_period=period)
                         prep_data[objective] = filtered_data
                         self.logger.debug("Adding dict %s - to objective %s",
                                           self.metric_periods, objective)
-                        
                     else:
                         self.logger.debug("Getting objective %s", objective)
                         prep_data[objective] = data_dict
@@ -272,11 +247,13 @@ class MetricsPipeline():
         Run metric functions and store results in json files.
         """
         self.logger.info("Starting calculating metrics to json files.")
-        languages = ["csv"]
+        # languages = ["csv"]
         # for lang in self.languages:
         metric_period_results = {}
         metric_period_languages = {}
-        for lang in languages:
+        for lang in self.languages:
+            if lang == "csv":
+                continue
             self.logger.debug("Getting language %s", lang)
             metrics_results = {}
             for metric, objectives in self.metrics_objective_mapping.items():

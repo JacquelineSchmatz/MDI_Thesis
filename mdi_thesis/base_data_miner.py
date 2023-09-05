@@ -352,18 +352,18 @@ class DataMinePipeline(base.Request):
         query_functions = [
             # self.base_data_to_json ,
             # self.forks_to_json,
-            # self.pulls_issues_to_json,
+            self.pulls_issues_to_json,
             # self.commits_to_json,
             # self.single_commits_to_json,
-            self.issue_comments_to_json,
+            # self.issue_comments_to_json,
             # self.upstream_dependencies_to_json,
             # self.downstream_dependencies_to_json,
             # self.branches_to_json,
             # self.contributors_to_json
         ]
         return query_functions
-#  
-# Rerun branches (reduced) if time rerun pulls for forks, if not remove fork metrics
+
+# Rerun branches (reduced), rerun issues_pulls for php
 
 
 def run_pipeline(start_date, languages, get_existing_repos, read_csv=""):
@@ -407,6 +407,7 @@ def main():
     # start_date = date(2023, 8, 21)
     # start_date = date(2023, 8, 26)
     languages = ["php", "cpp", "python", "JavaScript", "java"]
+    languages = ["php"]
     read_repository_json = True
     curr_path = Path(os.path.dirname(__file__))
     csv_path = os.path.join(curr_path.parents[0],
