@@ -8,12 +8,13 @@
         "repository": null
     },
     "technical_fork": {
+        "repository": null,
         "forks": ["created_at", "months=6"]
     },
     "criticality_score": {
         "repository": null,
         "contributors": null,
-        "organizations_count": null,
+        "organizations": null,
         "commits": ["updated_at", "months=12"],
         "release": ["published_at", "months=12"],
         "issue": ["updated_at", "days=90"],
@@ -21,34 +22,42 @@
         "downstream_dependencies": null
     },
     "pull_requests": {
+        "repository": null,
         "pull_requests": ["updated_at", "months=6"]
     },
     "project_velocity": {
+        "repository": null,
         "issue": ["updated_at", "months=6"]
     },
     "github_community_health_percentage": {
         "community_health": null
     },
     "issues": {
+        "repository": null,
         "issue": ["updated_at", "days=90"],
         "issue_comments": null
     },
     "support_rate": {
+        "repository": null,
         "issue": ["updated_at", "days=90"],
         "issue_comments": null
     },
     "code_dependency": {
+        "repository": null,
         "upstream_dependencies": null,
         "downstream_dependencies": null
     },
     "security_advisories": {
+        "repository": null,
         "advisories": null
     },
     "contributions_distributions": {
+        "repository": null,
         "commits": ["date", "months=1"],
         "single_commits": ["date", "months=1"]
     },
     "number_of_support_contributors": {
+        "repository": null,
         "commits": ["date", "months=6"]
     },
 
@@ -57,14 +66,17 @@
         "contributors": null
     },
     "churn": {
+        "repository": null,
         "single_commits": ["date", "months=1"]
     },
     "branch_lifecycle": {
+        "repository": null,
         "active_branches": null,
         "stale_branches": null,
         "branches": null
     },
     "elephant_factor": {
+        "repository": null,
         "contributors": null,
         "organization_users": null
     }

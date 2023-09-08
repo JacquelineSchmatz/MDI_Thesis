@@ -17,7 +17,7 @@ from dateutil import relativedelta
 import mdi_thesis.base.base as base
 import mdi_thesis.base.utils as utils
 import mdi_thesis.metrics as metrics
-
+ 
 
 class MetricsPipeline():
     """
@@ -47,7 +47,7 @@ class MetricsPipeline():
         Stores results in dictionary by objective and language.
         """
         parent_dir = os.path.abspath('.')
-        if parent_dir not in sys.path: 
+        if parent_dir not in sys.path:
             sys.path.append(parent_dir)
         combined_dict = {}
         path = os.path.join(parent_dir, "outputs", "data")
@@ -90,8 +90,8 @@ class MetricsPipeline():
         #     relativedelta.relativedelta(filter_period))
         if isinstance(filter_start_date, datetime):
             filter_start_date = filter_start_date.date()
-        print(filter_start_date)
-        print(self.filter_date)
+        self.logger.debug("Filter start date: %s", filter_start_date)
+        self.logger.debug("Filter end date: %s", self.filter_date)
         date_range = []
         for repo, content in data.items():
             content_filt = None
@@ -190,15 +190,18 @@ class MetricsPipeline():
             filtered_data[repo] = content_filt
         if date_range:
             min_date = min(date_range)
-            min_date = min_date.strftime("%Y-%m-%d")
             max_date = max(date_range)
+            date_diff = (max_date - min_date).days
+            min_date = min_date.strftime("%Y-%m-%d")
             max_date = max_date.strftime("%Y-%m-%d")
         else:
             min_date = None
             max_date = None
+            date_diff = None
 
         self.metric_periods["min_date"] = min_date
         self.metric_periods["max_date"] = max_date
+        self.metric_periods["date_diff_days"] = date_diff
 
         return filtered_data
 
@@ -239,7 +242,8 @@ class MetricsPipeline():
                     else:
                         self.logger.debug("Getting objective %s", objective)
                         prep_data[objective] = data_dict
-                    self.metric_objective_periods[objective] = self.metric_periods
+                    self.metric_objective_periods[objective] = \
+                        self.metric_periods
         return prep_data
 
     def run_metrics_to_json(self):
@@ -247,13 +251,9 @@ class MetricsPipeline():
         Run metric functions and store results in json files.
         """
         self.logger.info("Starting calculating metrics to json files.")
-        # languages = ["csv"]
-        # for lang in self.languages:
         metric_period_results = {}
         metric_period_languages = {}
         for lang in self.languages:
-            if lang == "csv":
-                continue
             self.logger.debug("Getting language %s", lang)
             metrics_results = {}
             for metric, objectives in self.metrics_objective_mapping.items():
@@ -270,14 +270,17 @@ class MetricsPipeline():
                         if "filter_date" in function_args:
                             metric_return = function_path(
                                 base_data=data,
-                                filter_date=self.filter_date)
+                                filter_date=self.filter_date,
+                                log=self.logger)
                         else:
                             self.logger.debug("Calculating metric %s", metric)
-                            metric_return = function_path(base_data=data)
+                            metric_return = function_path(base_data=data,
+                                                          log=self.logger)
                     else:
                         self.logger.critical("No data for metric %s", metric)
                     metrics_results[metric] = metric_return
-                    metric_period_results[metric] = self.metric_objective_periods
+                    metric_period_results[metric] = \
+                        self.metric_objective_periods
                 except AttributeError as att_err:
                     self.logger.error("Attribute Error: %s\n", att_err)
                     raise
@@ -290,7 +293,6 @@ class MetricsPipeline():
         curr_path = Path(os.path.dirname(__file__))
         output_path = os.path.join(
             curr_path.parents[0], "outputs/results/", )
-        # print(self.metric_periods)
         utils.dict_to_json(data=metric_period_languages,
                            data_path=output_path,
                            feature="metric_date_ranges")

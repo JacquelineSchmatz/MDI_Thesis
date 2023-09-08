@@ -66,13 +66,10 @@ def get_contributors(contributors_data, check_contrib=False) -> Dict[int, int]:
         contributors_nr = 0
         if check_contrib:
             for user in data:
-                if isinstance(user, dict):
-                    try:
-                        contributions = user.get("contributions")
-                        if contributions:
-                            contributors_nr += 1
-                    except AttributeError as att_err:
-                        print(f"Attribute error {att_err} at data {data} and user{user}")
+                if user and isinstance(user, dict):
+                    contributions = user.get("contributions")
+                    if contributions:
+                        contributors_nr += 1
         else:
             contributors_nr = len(data)
         repo_contributors[repo] = contributors_nr

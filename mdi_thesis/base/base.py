@@ -476,8 +476,7 @@ class Request:
                     "?" +
                     str(filter_str) +
                     "per_page=" +
-                    str(self.results_per_page)  # +
-                    # "&page=1"
+                    str(self.results_per_page)
                     )
                 self.logger.info("Object: %s - Start URL: %s",
                                  object_id, start_url)
@@ -1294,7 +1293,6 @@ class Request:
                         element_dict[feature] = results.get(feature)
                 else:
                     element_dict[feature] = results.get(feature)
-                # element_dict[feature] = results.get(feature)
             subfeature_list.append(element_dict)
             subfeature_dict[object_id] = subfeature_list
         else:
