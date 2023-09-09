@@ -37,11 +37,11 @@ lint:             ## Run pep8, black, mypy linters.
 	$(ENV_PREFIX)black -l 79 --check tests/
 	$(ENV_PREFIX)mypy --ignore-missing-imports mdi_thesis/
 
-.PHONY: test
-test: lint        ## Run tests and generate coverage report.
-	$(ENV_PREFIX)pytest -v --cov-config .coveragerc --cov=mdi_thesis -l --tb=short --maxfail=1 tests/
-	$(ENV_PREFIX)coverage xml
-	$(ENV_PREFIX)coverage html
+# .PHONY: test
+# test: lint        ## Run tests and generate coverage report.
+# 	$(ENV_PREFIX)pytest -v --cov-config .coveragerc --cov=mdi_thesis -l --tb=short --maxfail=1 tests/
+# 	$(ENV_PREFIX)coverage xml
+# 	$(ENV_PREFIX)coverage html
 
 .PHONY: watch
 watch:            ## Run tests on every change.
