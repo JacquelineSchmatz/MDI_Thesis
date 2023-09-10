@@ -1,0 +1,854 @@
+{
+    "JavaScript": {
+        "maturity_level": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            }
+        },
+        "osi_approved_license": {
+            "repository": {}
+        },
+        "technical_fork": {
+            "repository": {},
+            "forks": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "criticality_score": {
+            "repository": {},
+            "contributors": {},
+            "organizations": {},
+            "commits": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "downstream_dependencies": {}
+        },
+        "pull_requests": {
+            "repository": {},
+            "pull_requests": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "project_velocity": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "github_community_health_percentage": {
+            "community_health": {}
+        },
+        "issues": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "support_rate": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "code_dependency": {
+            "repository": {},
+            "upstream_dependencies": {},
+            "downstream_dependencies": {}
+        },
+        "security_advisories": {
+            "repository": {},
+            "advisories": {}
+        },
+        "contributions_distributions": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            },
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "number_of_support_contributors": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-02-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 181
+            }
+        },
+        "size_of_community": {
+            "repository": {},
+            "contributors": {}
+        },
+        "churn": {
+            "repository": {},
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "branch_lifecycle": {
+            "repository": {},
+            "active_branches": {},
+            "stale_branches": {},
+            "branches": {}
+        },
+        "elephant_factor": {
+            "repository": {},
+            "contributors": {},
+            "organization_users": {}
+        }
+    },
+    "java": {
+        "maturity_level": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            }
+        },
+        "osi_approved_license": {
+            "repository": {}
+        },
+        "technical_fork": {
+            "repository": {},
+            "forks": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "criticality_score": {
+            "repository": {},
+            "contributors": {},
+            "organizations": {},
+            "commits": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "downstream_dependencies": {}
+        },
+        "pull_requests": {
+            "repository": {},
+            "pull_requests": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "project_velocity": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "github_community_health_percentage": {
+            "community_health": {}
+        },
+        "issues": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "support_rate": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "code_dependency": {
+            "repository": {},
+            "upstream_dependencies": {},
+            "downstream_dependencies": {}
+        },
+        "security_advisories": {
+            "repository": {},
+            "advisories": {}
+        },
+        "contributions_distributions": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            },
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "number_of_support_contributors": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-02-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 181
+            }
+        },
+        "size_of_community": {
+            "repository": {},
+            "contributors": {}
+        },
+        "churn": {
+            "repository": {},
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "branch_lifecycle": {
+            "repository": {},
+            "active_branches": {},
+            "stale_branches": {},
+            "branches": {}
+        },
+        "elephant_factor": {
+            "repository": {},
+            "contributors": {},
+            "organization_users": {}
+        }
+    },
+    "python": {
+        "maturity_level": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            }
+        },
+        "osi_approved_license": {
+            "repository": {}
+        },
+        "technical_fork": {
+            "repository": {},
+            "forks": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "criticality_score": {
+            "repository": {},
+            "contributors": {},
+            "organizations": {},
+            "commits": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "downstream_dependencies": {}
+        },
+        "pull_requests": {
+            "repository": {},
+            "pull_requests": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "project_velocity": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "github_community_health_percentage": {
+            "community_health": {}
+        },
+        "issues": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "support_rate": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "code_dependency": {
+            "repository": {},
+            "upstream_dependencies": {},
+            "downstream_dependencies": {}
+        },
+        "security_advisories": {
+            "repository": {},
+            "advisories": {}
+        },
+        "contributions_distributions": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            },
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "number_of_support_contributors": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-02-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 181
+            }
+        },
+        "size_of_community": {
+            "repository": {},
+            "contributors": {}
+        },
+        "churn": {
+            "repository": {},
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "branch_lifecycle": {
+            "repository": {},
+            "active_branches": {},
+            "stale_branches": {},
+            "branches": {}
+        },
+        "elephant_factor": {
+            "repository": {},
+            "contributors": {},
+            "organization_users": {}
+        }
+    },
+    "csv": {
+        "maturity_level": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            }
+        },
+        "osi_approved_license": {
+            "repository": {}
+        },
+        "technical_fork": {
+            "repository": {},
+            "forks": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "criticality_score": {
+            "repository": {},
+            "contributors": {},
+            "organizations": {},
+            "commits": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "downstream_dependencies": {}
+        },
+        "pull_requests": {
+            "repository": {},
+            "pull_requests": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "project_velocity": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "github_community_health_percentage": {
+            "community_health": {}
+        },
+        "issues": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "support_rate": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "code_dependency": {
+            "repository": {},
+            "upstream_dependencies": {},
+            "downstream_dependencies": {}
+        },
+        "security_advisories": {
+            "repository": {},
+            "advisories": {}
+        },
+        "contributions_distributions": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            },
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "number_of_support_contributors": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-02-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 181
+            }
+        },
+        "size_of_community": {
+            "repository": {},
+            "contributors": {}
+        },
+        "churn": {
+            "repository": {},
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "branch_lifecycle": {
+            "repository": {},
+            "active_branches": {},
+            "stale_branches": {},
+            "branches": {}
+        },
+        "elephant_factor": {
+            "repository": {},
+            "contributors": {},
+            "organization_users": {}
+        }
+    },
+    "php": {
+        "maturity_level": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            }
+        },
+        "osi_approved_license": {
+            "repository": {}
+        },
+        "technical_fork": {
+            "repository": {},
+            "forks": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "criticality_score": {
+            "repository": {},
+            "contributors": {},
+            "organizations": {},
+            "commits": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "downstream_dependencies": {}
+        },
+        "pull_requests": {
+            "repository": {},
+            "pull_requests": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "project_velocity": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "github_community_health_percentage": {
+            "community_health": {}
+        },
+        "issues": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "support_rate": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "code_dependency": {
+            "repository": {},
+            "upstream_dependencies": {},
+            "downstream_dependencies": {}
+        },
+        "security_advisories": {
+            "repository": {},
+            "advisories": {}
+        },
+        "contributions_distributions": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            },
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "number_of_support_contributors": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-02-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 181
+            }
+        },
+        "size_of_community": {
+            "repository": {},
+            "contributors": {}
+        },
+        "churn": {
+            "repository": {},
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "branch_lifecycle": {
+            "repository": {},
+            "active_branches": {},
+            "stale_branches": {},
+            "branches": {}
+        },
+        "elephant_factor": {
+            "repository": {},
+            "contributors": {},
+            "organization_users": {}
+        }
+    },
+    "cpp": {
+        "maturity_level": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            }
+        },
+        "osi_approved_license": {
+            "repository": {}
+        },
+        "technical_fork": {
+            "repository": {},
+            "forks": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "criticality_score": {
+            "repository": {},
+            "contributors": {},
+            "organizations": {},
+            "commits": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "release": {
+                "min_date": "2022-08-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 365
+            },
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "downstream_dependencies": {}
+        },
+        "pull_requests": {
+            "repository": {},
+            "pull_requests": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "project_velocity": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-02-24",
+                "max_date": "2023-08-23",
+                "date_diff_days": 180
+            }
+        },
+        "github_community_health_percentage": {
+            "community_health": {}
+        },
+        "issues": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "support_rate": {
+            "repository": {},
+            "issue": {
+                "min_date": "2023-05-25",
+                "max_date": "2023-08-23",
+                "date_diff_days": 90
+            },
+            "issue_comments": {}
+        },
+        "code_dependency": {
+            "repository": {},
+            "upstream_dependencies": {},
+            "downstream_dependencies": {}
+        },
+        "security_advisories": {
+            "repository": {},
+            "advisories": {}
+        },
+        "contributions_distributions": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            },
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "number_of_support_contributors": {
+            "repository": {},
+            "commits": {
+                "min_date": "2023-02-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 181
+            }
+        },
+        "size_of_community": {
+            "repository": {},
+            "contributors": {}
+        },
+        "churn": {
+            "repository": {},
+            "single_commits": {
+                "min_date": "2023-07-23",
+                "max_date": "2023-08-23",
+                "date_diff_days": 31
+            }
+        },
+        "branch_lifecycle": {
+            "repository": {},
+            "active_branches": {},
+            "stale_branches": {},
+            "branches": {}
+        },
+        "elephant_factor": {
+            "repository": {},
+            "contributors": {},
+            "organization_users": {}
+        }
+    }
+}
