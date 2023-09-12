@@ -17,7 +17,7 @@ from dateutil import relativedelta
 import mdi_thesis.base.base as base
 import mdi_thesis.base.utils as utils
 import mdi_thesis.metrics as metrics
- 
+
 
 class MetricsPipeline():
     """
@@ -310,7 +310,7 @@ def main():
     """
     Set start for pipeline filters
     """
-    # start_date = date(2023, 8, 27)
+
     start_date = date(2023, 8, 23)
     run_pipeline(start_date=start_date)
 
