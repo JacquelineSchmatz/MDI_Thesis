@@ -5,7 +5,15 @@ data cleaning and data storage.
 import json
 import os
 import re
+import numpy as np
 from typing import Dict, List, Any, Union
+
+
+class npEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.int32):
+            return int(obj)
+        return json.JSONEncoder.default(self, obj)
 
 
 def __get_ids_from_txt__(path: str) -> List[int]:
@@ -132,7 +140,7 @@ def dict_to_json(data: Union[Dict, List], data_path: str, feature: str):
     :param data_path: Path where file should be written.
     :param feature: Feature for filename.
     """
-    json_object = json.dumps(data, indent=4)
+    json_object = json.dumps(data, indent=4, cls=npEncoder)
     file_name = os.path.join(data_path, (feature + ".json"))
     with open(file_name, "w", encoding='utf-8') as outfile:
         outfile.write(json_object)
