@@ -705,22 +705,26 @@ def support_rate(base_data: Dict, log: logging.Logger) -> Dict[int, float]:
             data = issues_pulls.get(repo)
             issue_flag = {}
             support_rate_val = None
+            total_issues = 0
+            total_pulls = 0
+            issues_with_response = 0
+            pulls_with_response = 0
             if data:
                 for issue in data:
                     pull_request_id = issue.get("pull_request")
                     is_pull_request = bool(pull_request_id)
                     issue_number = issue.get("number")
                     issue_flag[str(issue_number)] = is_pull_request
+                    if is_pull_request:
+                        total_pulls += 1
+                    else:
+                        total_issues += 1
                 issue_comment_data = issue_comments.get(repo)
-                issues_with_response = 0
-                total_issues = 0
-                total_pulls = 0
-                pulls_with_response = 0
                 if issue_comment_data:
                     for issue, comments in issue_comment_data.items():
                         # If issue is no pull
                         if not issue_flag.get(issue):
-                            total_issues += 1
+                            # total_issues += 1
                             if comments:
                                 for comment in comments:
                                     comment_id = comment.get("id")
@@ -728,7 +732,7 @@ def support_rate(base_data: Dict, log: logging.Logger) -> Dict[int, float]:
                                         issues_with_response += 1
                                         break
                         else:
-                            total_pulls += 1
+                            # total_pulls += 1
                             if comments:
                                 for comment in comments:
                                     comment_id = comment.get("id")
@@ -930,7 +934,6 @@ def contributions_distributions(base_data: Dict, log: logging.Logger) -> Dict[
                 rof_per_contributor.sort(reverse=True)
                 total_file_contributions = sum(rof_per_contributor)
                 total_file_contributer = len(rof_per_contributor)
-                twenty_percent = total_file_contributer * 0.2
                 eighty_percent = total_file_contributions * 0.8
                 running_contributions = 0
                 rof_pareto_ist = 0
@@ -942,18 +945,14 @@ def contributions_distributions(base_data: Dict, log: logging.Logger) -> Dict[
                                                         start=1):
                     running_contributions += contributions
                     # if contrib == math.ceil(twenty_percent):
-                    if running_contributions >= math.ceil(eighty_percent):
+                    if running_contributions >= eighty_percent:
                         rof_pareto_ist = contrib
                         rof_pareto_ist_percentage = (rof_pareto_ist /
                                                      total_file_contributer)
-                        # rof_pareto_ist = running_contributions
-                        # rof_pareto_ist_percentage = (rof_pareto_ist /
-                        #                         total_file_contributions)
-                        rof_prot_diff = np.absolute(
-                            (0.2)-rof_pareto_ist_percentage) * 100
                         break
                 rof_pareto_dominant = rof_pareto_ist_percentage*100
                 rof_pareto_tail = 100 - rof_pareto_dominant
+                rof_prot_diff = np.absolute(20-rof_pareto_dominant)
             pareto_results = {
                         "RoF_tail":
                         rof_pareto_tail,
@@ -1010,7 +1009,6 @@ def contributions_distributions(base_data: Dict, log: logging.Logger) -> Dict[
                 bus_factor_score = 0
                 total_contributions = sum(commits_sorted)
                 total_contributer = len(commits_sorted)
-                twenty_percent = total_contributer * 0.2
                 eighty_percent = total_contributions * 0.8
                 running_contributions = 0
                 noc_pareto_ist = 0
@@ -1021,23 +1019,17 @@ def contributions_distributions(base_data: Dict, log: logging.Logger) -> Dict[
                 for contrib, contributions in enumerate(
                         commits_sorted, start=1):
                     running_contributions += contributions
-                    if running_contributions >= math.ceil(eighty_percent):
+                    if running_contributions >= eighty_percent:
                         noc_pareto_ist = contrib
                         noc_pareto_ist_percentage = (noc_pareto_ist /
                                                      total_contributer)
-                        noc_prot_diff = np.absolute((0.2) -
-                                                    noc_pareto_ist_percentage
-                                                    ) * 100
                         break
-                    # if contrib == math.ceil(twenty_percent):
-                    #     noc_pareto_ist = running_contributions
-                    #     noc_pareto_ist_percentage = (noc_pareto_ist /
-                    # total_contributions)
                     if t_2 <= t_1:
                         t_2 += contributions
                         bus_factor_score += 1
                 noc_pareto_dominant = noc_pareto_ist_percentage*100
                 noc_pareto_tail = 100 - noc_pareto_dominant
+                noc_prot_diff = np.absolute(20-noc_pareto_dominant)
             pareto_results = {
                 "bus_factor_score": bus_factor_score,
                 "NoC_tail": noc_pareto_tail,
@@ -1189,7 +1181,7 @@ def size_of_community(base_data: Dict, log: logging.Logger) -> Dict[int, float]:
             elif community_count > 300:
                 score = 5
             community_score = (score/5) * 100
-            repo_community[repo] = int(community_score)
+            repo_community[repo] = community_score
     else:
         log.info("No data available. Returning %s", repo_community)
     return repo_community
