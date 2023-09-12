@@ -35,12 +35,12 @@
     "issues": {
         "repository": null,
         "issue": ["updated_at", "days=90"],
-        "issue_comments": null
+        "issue_comments": ["updated_at", "days=90"]
     },
     "support_rate": {
         "repository": null,
         "issue": ["updated_at", "days=90"],
-        "issue_comments": null
+        "issue_comments": ["updated_at", "days=90"]
     },
     "code_dependency": {
         "repository": null,
